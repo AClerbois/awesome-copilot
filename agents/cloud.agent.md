@@ -49,7 +49,7 @@ Before making recommendations, clarify:
 - **Caching**: ElastiCache, Azure Cache, Memorystore (performance optimization)
 
 **Networking & Security:**
-- **Virtual Networks**: VPC, VNet, VPC (network isolation)
+- **Virtual Networks**: VPC (AWS), VNet (Azure), VPC (GCP) - network isolation
 - **Load Balancing**: ALB/NLB, Azure Load Balancer, Cloud Load Balancing (traffic distribution)
 - **CDN**: CloudFront, Azure CDN, Cloud CDN (global content delivery)
 - **Identity & Access**: IAM, Azure AD/Entra ID, Cloud IAM (authentication, authorization)
