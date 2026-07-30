@@ -3,7 +3,7 @@ title: 'Copilot Configuration Basics'
 description: 'Learn how to configure GitHub Copilot at user, workspace, and repository levels to optimize your AI-assisted development experience.'
 authors:
   - GitHub Copilot Learning Hub Team
-lastUpdated: 2026-07-13
+lastUpdated: 2026-07-30
 estimatedReadingTime: '10 minutes'
 tags:
   - configuration
@@ -428,7 +428,7 @@ CLI settings use **camelCase** naming. Key settings added in recent releases:
 | `continueOnAutoMode` | Automatically switch to the auto model on rate limit instead of pausing |
 | `proxy` | HTTP(S) proxy URL for all outbound CLI requests (e.g., `http://proxy.example.com:8080`) (v1.0.64+) |
 | `sessionLimits` | Restrict credit or turn usage for a session; limits apply across the current conversation and reset on `/clear` (v1.0.66+) |
-| `stayInAutopilot` | Keep the CLI in autopilot mode after an autopilot task completes, instead of returning to interactive mode (v1.0.69+) |
+| `stayInAutopilot` | Keep the CLI in autopilot mode after an autopilot task completes, instead of returning to interactive mode (v1.0.69+). As of v1.0.76, `stayInAutopilot` defaults to `true` — autopilot stays selected after `task_complete` unless you set this to `false`. |
 
 > **Note**: Older snake_case names (e.g., `include_gitignored`, `auto_updates_channel`) are still accepted for backward compatibility, but camelCase is now the preferred format.
 
@@ -448,6 +448,16 @@ The model picker opens in a **full-screen view** with inline reasoning effort ad
 **Auto mode and server-side model routing** (v1.0.43+): When you select **Auto** as your model, the CLI uses server-side model routing for real-time model selection. Instead of locking in a single model at session start, Auto mode evaluates each request and routes it to the most appropriate model dynamically. This means straightforward questions can be handled by a faster model while complex reasoning tasks are automatically escalated — without you needing to switch models manually.
 
 **Model family aliases** (v1.0.64+): Instead of typing a full model name, you can use short family aliases in the model setting: `opus`, `sonnet`, `haiku` (Anthropic), and `gpt`, `gemini` (Google/OpenAI). The CLI resolves the alias to the latest available model in that family. This is especially useful in scripts or configuration files where you want to track the best model in a family without hardcoding a version string.
+
+**Plan mode model** (v1.0.74+): Select a separate model to use while in plan mode — a lighter or faster model for planning phases while reserving a more powerful model for implementation:
+
+```
+/model plan                    # open the model picker for plan mode
+/model --plan claude-haiku-4   # set a specific model for plan mode
+/model --plan off              # clear the plan-mode model (reverts to session model)
+```
+
+When you leave plan mode, the session reverts to its normal model. This is useful for cost-conscious workflows where you want fast iteration during planning without committing full model capacity.
 
 ### CLI Session Commands
 
@@ -506,6 +516,14 @@ The `/session delete` command removes sessions you no longer need:
 You can also press **x** on a highlighted session in the session picker (`--resume`) to delete it directly from the list.
 
 In the session picker, press **`s`** to cycle the sort order: relevance, last used, created, or name. The picker also shows the branch name and idle/in-use status for each session.
+
+**Sessions sidebar** *(v1.0.76+, experimental)*: A new sidebar panel for managing multiple concurrent sessions. Switch between active sessions, spawn new ones, and see their status at a glance — all without leaving your current session. Enable it with:
+
+```
+/experimental on
+```
+
+Once experimental mode is on, the Sessions sidebar appears as a toggleable panel. This complements the existing session picker (`--resume`) and `/new` workflow, giving you a persistent side view for parallel work. The sidebar's **hover-to-focus** behaviour (where hovering a session card switches focus to it) is off by default — toggle it via `sidebar.hoverFocus`. The active session card is accented by default — toggle it via `sidebar.accentActiveSession`.
 
 The `/rewind` command opens a timeline picker that lets you roll back the conversation to any earlier point in history, reverting both the conversation and any file changes made after that point. You can also trigger it by pressing **double-Esc**:
 
@@ -627,6 +645,8 @@ Use `/diagnose` when a session is behaving unexpectedly — it inspects session 
 
 **Keyboard shortcuts for queuing messages**: Use **Ctrl+Q** or **Ctrl+Enter** to queue a message (send it while the agent is still working). **Ctrl+D** no longer queues messages — it now has its default terminal behavior. If you have muscle memory for Ctrl+D queuing, switch to Ctrl+Q.
 
+**Directable queue manager** (v1.0.76+): When you have queued messages waiting to be sent, the queue manager lets you **reorder, edit, remove, repeat, and immediately send** individual queued messages. This gives you fine-grained control over your planned prompts — useful when you realize a later queued step should come first, or when you want to remove a step that's no longer needed before the agent processes it.
+
 **Background running tasks**: Press **Ctrl+X → B** to move the current running task or shell command to the background. The task continues executing while you can type a new message or review earlier output. This is useful for long-running commands where you want to interact with the agent while waiting for the result.
 
 **Shell command history in normal mode** (v1.0.65+): The **↑/↓** arrow keys and **Ctrl+R** reverse search now include past shell commands (commands run with `!`) while you are in normal (non-shell) input mode. Previously you had to type `!` to enter shell mode before history worked. Now you can recall and re-run a shell command without switching modes first — useful for quickly repeating a build, test, or diagnostic command from earlier in the session.
@@ -664,6 +684,14 @@ The `/usage` command displays session metrics such as the number of tokens consu
 ```
 /usage
 ```
+
+The `/limits predict` command *(v1.0.76+)* analyzes your session history to suggest an appropriate AI-credit limit for the current session based on similar past sessions:
+
+```
+/limits predict
+```
+
+Use `/limits predict` before starting a long task to get an informed estimate of how many credits the session is likely to consume. The suggestion helps you configure `sessionLimits` more accurately rather than guessing. See also the `sessionLimits` config option above.
 
 The `/compact` command summarizes the conversation history to free up context window space while preserving the thread of the conversation. Use it when your context is getting full but you do not want to start a fresh session:
 

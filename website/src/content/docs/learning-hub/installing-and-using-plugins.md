@@ -3,7 +3,7 @@ title: 'Installing and Using Plugins'
 description: 'Learn how to find, install, and manage plugins that extend GitHub Copilot CLI with reusable agents, skills, hooks, and integrations.'
 authors:
   - GitHub Copilot Learning Hub Team
-lastUpdated: 2026-07-13
+lastUpdated: 2026-07-30
 estimatedReadingTime: '8 minutes'
 tags:
   - plugins
@@ -31,7 +31,7 @@ A plugin bundles one or more of the following components:
 | **Custom Agents** | Specialized AI assistants with tailored expertise | `agents/*.agent.md` |
 | **Skills** | Discrete callable capabilities with bundled resources | `skills/*/SKILL.md` |
 | **Hooks** | Event handlers that intercept agent behavior | `hooks.json` or `hooks/` |
-| **MCP Servers** | Model Context Protocol integrations for external tools | `.mcp.json` or `.github/mcp.json` |
+| **MCP Servers** | Model Context Protocol integrations for external tools | `.mcp.json` or `.github/mcp.json` (Open Plugin Spec v1 `mcp.json` also supported, v1.0.74+) |
 | **LSP Servers** | Language Server Protocol integrations | `lsp.json` or `.github/lsp.json` |
 | **Extensions** | IDE extensions installable via the plugin marketplace (v1.0.62+) | `extensions/` |
 
@@ -221,6 +221,20 @@ copilot plugin marketplace update
 # Remove a plugin
 copilot plugin uninstall my-plugin
 ```
+
+### Enabling and Disabling Plugin Components
+
+*(v1.0.76+)* The `/plugins` command now includes **enable/disable toggles** for individual plugin components — plugins, instructions, agents, LSP servers, and hooks — without uninstalling them. This lets you temporarily deactivate a component to debug conflicts or adjust your working environment without losing your configuration:
+
+```
+/plugins
+```
+
+In the `/plugins` interface, select any installed plugin or component and toggle it on or off. Disabled components are preserved in your installation but excluded from active sessions until re-enabled. This is especially useful for:
+
+- **Debugging conflicts** between plugins that define similar agents or hooks
+- **Temporarily disabling hooks** that interfere with a specific task
+- **A/B testing agents** by enabling one and disabling another for comparison
 
 ### Loading Plugins from a Local Directory
 
