@@ -2,7 +2,7 @@
 
 Elicitation lets a tool **ask the user for input mid-execution**, via the client. The LLM doesn't see the question; the client surfaces it directly to the user. This turns one-shot tool calls into interactive flows — collecting confirmation, missing parameters, credentials (URL mode), etc.
 
-> **Spec version:** 2025-11-25. URL mode is the newer addition (originally 2025-06-18 had only form mode).
+> **Spec version:** current as of 2026-07-28 — elicitation is *not* on the deprecation list (unlike roots/sampling/logging). URL mode is the newer addition (originally 2025-06-18 had only form mode).
 
 ## Two modes
 
@@ -15,9 +15,9 @@ Elicitation lets a tool **ask the user for input mid-execution**, via the client
 
 Elicitation requires the server to send a request *to* the client and wait for a response. That only works on:
 - STDIO (always).
-- Stateful HTTP (`options.Stateless = false`).
+- Stateful HTTP (`options.Stateless = false` — **you must set this explicitly since SDK 2.0**, where stateless became the default; expect an `MCP9006` warning).
 
-In stateless HTTP, `ElicitAsync` will throw — there's no transport channel back.
+In stateless HTTP (the default), `ElicitAsync` will throw — there's no transport channel back.
 
 ## Form mode — full example
 

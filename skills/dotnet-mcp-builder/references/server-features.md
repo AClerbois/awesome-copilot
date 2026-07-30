@@ -60,6 +60,8 @@ public class WeatherTools
 
 For STDIO servers, remember: console logging **must** go to stderr (`LogToStandardErrorThreshold = LogLevel.Trace`) — otherwise it corrupts the JSON-RPC stream. See [`transport-stdio.md`](./transport-stdio.md).
 
+> **Deprecated in spec 2026-07-28:** MCP-channel logging (the `notifications/message` mechanism below) is on the deprecation list, and SDK 2.0 flags its APIs with `MCP9005` warnings. Plain `ILogger` to stderr/your log pipeline is unaffected and remains the right default. Only use MCP-channel logging for down-level hosts that surface it, and suppress the warning deliberately.
+
 To send a log specifically over the MCP channel (so the *host UI* sees it, not just your container logs):
 
 ```csharp
@@ -134,6 +136,18 @@ options.Capabilities.NotificationHandlers[NotificationMethods.CancelledNotificat
     {
         // The client cancelled a request; if you have side-effects in flight, abort them.
     };
+```
+
+## Batching list-changed notifications
+
+If you add/remove many primitives at once (plugin load, tenant switch), don't fire one `list_changed` notification per item. SDK 2.0 added `McpServerPrimitiveCollection<T>.DeferChangedEvents()` — wrap the mutations so a single coalesced notification goes out when the scope disposes:
+
+```csharp
+using (options.ToolCollection.DeferChangedEvents())
+{
+    foreach (var tool in group.Tools)
+        options.ToolCollection.TryAdd(tool);
+} // exactly one notifications/tools/list_changed emitted here
 ```
 
 ## Filters / middleware

@@ -7,7 +7,7 @@ STDIO is the right choice when the server runs as a child process of the client 
 - Local-first server (file-system access, dev tools, CLI integrations).
 - Distributing as a single executable or a `dnx`-runnable NuGet package.
 - You want the simplest possible deployment story (no network, no auth).
-- You need server-to-client features (sampling, elicitation, roots) — STDIO always supports them, no `Stateless` flag to worry about.
+- You need server-to-client features (elicitation, and the spec-deprecated sampling/roots) — STDIO always supports them, no `Stateless` flag to worry about.
 
 If the user wants a remote/multi-tenant server, use [HTTP Streamable](./transport-http.md) instead.
 
@@ -65,7 +65,7 @@ The single most common bug in STDIO servers is something writing to stdout that 
 
 ## Server identity
 
-The SDK sends `serverInfo` (name + version) in the `initialize` response. By default it derives them from your assembly. To override:
+The SDK sends `serverInfo` (name + version) during connection negotiation — in the `server/discover` response on spec 2026-07-28, or the legacy `initialize` response for older clients; both are handled automatically. By default it derives them from your assembly. To override:
 
 ```csharp
 builder.Services

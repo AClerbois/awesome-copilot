@@ -102,6 +102,8 @@ public static Forecast[] GetForecast(string city) =>
 
 The SDK emits the array as both a JSON text block (for older clients) and `structuredContent` (for newer ones), and infers an output schema from `Forecast`.
 
+> **Changed in SDK 2.0:** with structured output enabled, a **non-object** return type now emits the raw value on the wire — `structuredContent: 72` — instead of the 1.x wrapper `{ "result": 72 }`. Clients must read the value according to the advertised output schema. If you maintain a client that unwrapped `result`, fix it when upgrading.
+
 ### Returning images / audio
 
 ```csharp
@@ -217,9 +219,14 @@ await server.SendNotificationAsync(
 
 Requires a stateful transport (STDIO or stateful HTTP).
 
+## Long-running tools
+
+If a tool takes more than a few seconds, don't just block — either stream progress notifications (see `server-features.md`) or expose it through the **Tasks extension** (`ModelContextProtocol.Extensions.Tasks`), which lets clients poll status instead of holding the request open. See `tasks.md`.
+
 ## Common pitfalls
 
 - **Forgetting `[McpServerToolType]` on the class.** The method-level `[McpServerTool]` alone won't be discovered by `WithToolsFromAssembly`.
 - **Vague descriptions.** `[Description("Gets data")]` makes the LLM guess. Spend a sentence describing what the tool does, when to call it, and what it returns.
 - **Big payloads.** Tools that return megabytes of JSON eat the model's context. Trim or paginate. For binary blobs, return an `EmbeddedResourceBlock` so the host can decide how to render it.
 - **Hiding errors.** Returning `"failed"` as a string looks like success to the SDK. Throw the exception or set `IsError = true`.
+- **Hand-building `Tool` payloads without `InputSchema`.** Since SDK 2.0, deserializing a `Tool` without `inputSchema` throws `JsonException`. Attribute-discovered tools are unaffected (the SDK generates the schema), but manual `Tool` definitions, proxies and test fixtures need at least an empty `{}` object schema.

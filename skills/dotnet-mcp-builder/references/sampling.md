@@ -1,5 +1,7 @@
 # Sampling
 
+> **Deprecated in spec 2026-07-28.** The sampling APIs still work — including against peers negotiating older protocol versions — but SDK 2.0 flags every use with an `MCP9005` warning, and no replacement primitive exists yet. For an **existing** server that relies on sampling, suppress `MCP9005` deliberately and note the migration debt. For a **new** server, prefer bringing your own model (direct `IChatClient` to a provider) unless the user explicitly targets hosts that still support sampling.
+
 Sampling lets a tool **call the LLM through the client** instead of bringing its own model. The server says "summarise this for me" and the client routes the request to whatever model the user has configured (Claude, GPT, local model, anything). Costs and rate limits live with the client, not the server.
 
 ## When to use sampling
@@ -12,7 +14,7 @@ If you already have a deterministic algorithm, don't add a sampling call "for fl
 
 ## Prerequisite: stateful transport
 
-Like elicitation, sampling needs the server to call back to the client. STDIO works always; HTTP needs `options.Stateless = false`.
+Like elicitation, sampling needs the server to call back to the client. STDIO works always; HTTP needs `options.Stateless = false` (explicit since SDK 2.0 — stateless is now the default).
 
 ## Recommended: `IChatClient` adapter
 

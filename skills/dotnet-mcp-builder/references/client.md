@@ -12,6 +12,10 @@ dotnet add package ModelContextProtocol.Core   # minimal: just client + transpor
 dotnet add package ModelContextProtocol         # adds DI/hosting helpers
 ```
 
+## Protocol negotiation (2.0)
+
+Since SDK 2.0 (spec 2026-07-28), `McpClient.CreateAsync` probes the server with `server/discover` first and falls back to the legacy `initialize` handshake automatically when the server is on an older protocol version. This is transparent — but if you mock the wire in tests, don't assume the first request is `initialize`. To attach `_meta` to the legacy initialize request when it is used, set `McpClientOptions.InitializeMeta`.
+
 ## Connecting via STDIO (launching a server process)
 
 ```csharp
@@ -29,7 +33,7 @@ var transport = new StdioClientTransport(new StdioClientTransportOptions
 await using var client = await McpClient.CreateAsync(transport);
 ```
 
-`StandardErrorLines` is a great debugging aid — you'll see your server's logs as they happen.
+`StandardErrorLines` is a great debugging aid — you'll see your server's logs as they happen. SDK 2.0 also added `InheritEnvironmentVariables` on `StdioClientTransportOptions` to control whether the launched server inherits the parent process environment on top of `EnvironmentVariables`.
 
 ## Connecting via HTTP (Streamable)
 
@@ -112,7 +116,7 @@ client.RegisterNotificationHandler(
 
 ## Handling server-to-client requests (sampling, elicitation, roots)
 
-If your server uses these features, your client must handle them. Configure handlers when creating the client:
+If your server uses these features, your client must handle them. Note that sampling and roots are deprecated in spec 2026-07-28 — wiring their handlers emits `MCP9005` warnings in SDK 2.0, but they remain necessary for servers still using those features. Configure handlers when creating the client:
 
 ```csharp
 await using var client = await McpClient.CreateAsync(transport, new McpClientOptions
@@ -189,3 +193,11 @@ await using var client = await McpClient.ResumeSessionAsync(transport, new Resum
 ```
 
 Useful for long-lived agent processes that survive transient network drops.
+
+## OAuth changes in 2.0 (client side)
+
+If your client authenticates to a protected server via `ClientOAuthOptions`:
+- `AuthorizationRedirectDelegate` is deprecated (`MCP9007`) — migrate to `AuthorizationCallbackHandler`, which returns the authorization code, state **and issuer** so the SDK can validate it per RFC 9207.
+- Issuer mismatches and authorization servers that don't advertise PKCE `S256` are now rejected outright.
+- `offline_access` is appended to the requested scope automatically when the server advertises it; `ScopeSelectorDelegate` lets you customise scope selection during step-up challenges.
+- Repeated `insufficient_scope` challenges that introduce no new scopes throw `McpException` instead of looping.

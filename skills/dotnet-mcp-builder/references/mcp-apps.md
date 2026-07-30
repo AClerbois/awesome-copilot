@@ -2,7 +2,45 @@
 
 [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview) is the official extension that lets a tool return an **interactive UI** rendered in a sandboxed iframe inside the host (Claude, Claude Desktop, VS Code Copilot, Goose, Postman, MCPJam). Typical use cases: charts, dashboards, multi-step forms, 3D viewers, real-time monitors, PDF/video viewers.
 
-> **Important:** as of early 2026, the C# SDK does **not** ship a typed convenience layer for MCP Apps (tracked in [csharp-sdk#1431](https://github.com/modelcontextprotocol/csharp-sdk/issues/1431)). You implement the spec by hand: serve a `ui://` resource and emit the right `_meta` on the tool. It's not hard — just untyped. This page shows you the pattern.
+> **New in SDK 2.0:** the typed convenience layer finally shipped as the **`ModelContextProtocol.Extensions.Apps`** package (2.0.0). Prefer it: `[McpAppUi]` on the tool + `.WithMcpApps()` on the builder replaces the manual `_meta` plumbing. The manual pattern (further down) remains valid and is still useful for dynamic tools or hosts needing legacy `_meta` keys.
+
+## The typed way (SDK 2.0+, recommended)
+
+```bash
+dotnet add package ModelContextProtocol.Extensions.Apps
+```
+
+1. Serve the `ui://` resource exactly as before (Step 1 below).
+2. Annotate the tool and enable the extension:
+
+```csharp
+using ModelContextProtocol.Server;
+
+[McpServerToolType]
+public class ChartTools
+{
+    [McpServerTool(Name = "visualize_data")]
+    [McpAppUi(ResourceUri = "ui://charts/interactive")]
+    [Description("Visualize the user's data as an interactive chart.")]
+    public static async Task<ChartData> VisualizeData(string datasetId, CancellationToken ct)
+        => await LoadDataset(datasetId, ct);
+}
+```
+
+```csharp
+builder.Services
+    .AddMcpServer()
+    .WithHttpTransport()
+    .WithToolsFromAssembly()
+    .WithMcpApps();          // AFTER tool registration — it post-processes registered tools
+```
+
+`WithMcpApps()` advertises the MCP Apps capability and stamps `_meta.ui` onto every tool carrying `[McpAppUi]`. Notes:
+- Order matters: call it after `WithTools*`. It skips tools that already have an explicit `Meta["ui"]` entry, so you can mix attribute-driven and manual tools.
+- `[McpAppUi]` also has a `Visibility` property (`McpUiToolVisibility.Model` / `McpUiToolVisibility.App`) to control whether the LLM, the rendered app, or both may invoke the tool. Null/empty means both.
+- CSP and permissions for the iframe have typed counterparts (`McpUiResourceCsp`, `McpUiResourcePermissions`, `McpUiResourceMeta`) — check the [API reference](https://csharp.sdk.modelcontextprotocol.io/) for the current shape rather than guessing.
+
+The rest of this page shows the underlying wire pattern — read it to understand what the extension emits, or to target hosts that predate it.
 
 ## How it works (short version)
 
@@ -59,9 +97,9 @@ public static class ChartUiResource
 
 **MIME type note:** the spec uses `text/html+skybridge` for app HTML so hosts can distinguish UI bundles from regular `text/html` previews. Use that, even though plain `text/html` may work today on lenient hosts.
 
-## Step 2: Emit `_meta` on the tool
+## Step 2 (manual alternative): Emit `_meta` on the tool yourself
 
-The C# SDK's `[McpServerTool]` doesn't expose `_meta` in the attribute today, so set it via the lower-level `Tool` definition. Do this once at startup:
+If you don't use the `Extensions.Apps` package — or the tool is built dynamically — set `_meta` via the lower-level `Tool` definition. Do this once at startup:
 
 ```csharp
 using ModelContextProtocol.Protocol;
@@ -211,10 +249,7 @@ For pure-UI iteration, [MCP Inspector](https://github.com/modelcontextprotocol/i
 ## Pitfalls
 
 - **Wrong MIME type.** Use `text/html+skybridge`. Plain `text/html` may still work but isn't future-proof.
-- **CSP too tight or too loose.** If your UI loads from a CDN, declare it in `Meta["ui"]["csp"]` on the `Tool` definition (this serialises to `_meta.ui.csp` on the wire). Otherwise the iframe sandbox blocks it.
-- **Forgetting `Tool.Meta` on the tool.** Without the `Meta` property containing the `ui.resourceUri` entry, the host treats your tool as a regular text-returning tool. The UI never appears.
+- **Calling `WithMcpApps()` before tool registration.** It post-processes already-registered tools; called too early, no `_meta.ui` gets stamped and the UI silently never appears.
+- **CSP too tight or too loose.** If your UI loads from a CDN, declare it (typed via the CSP types in `Extensions.Apps`, or manually in `Meta["ui"]["csp"]` — serialises to `_meta.ui.csp` on the wire). Otherwise the iframe sandbox blocks it.
+- **No `ui` metadata on the tool.** Without `[McpAppUi]` + `WithMcpApps()` (or a manual `Meta["ui"]` entry), the host treats your tool as a regular text-returning tool. The UI never appears.
 - **Trying to use browser APIs outside the sandbox.** No cookies, no localStorage from the parent. Use `app.updateModelContext` and tool calls for state.
-
-## Future-proofing
-
-When the C# SDK ships its typed MCP Apps helpers (issue [#1431](https://github.com/modelcontextprotocol/csharp-sdk/issues/1431)), you'll likely be able to replace the manual `Configure` block with an attribute or fluent builder. The serving of `ui://` resources won't change. Keep your UI HTML as embedded resources so the migration is mechanical.
