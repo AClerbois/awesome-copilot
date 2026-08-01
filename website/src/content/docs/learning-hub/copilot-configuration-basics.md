@@ -3,7 +3,7 @@ title: 'Copilot Configuration Basics'
 description: 'Learn how to configure GitHub Copilot at user, workspace, and repository levels to optimize your AI-assisted development experience.'
 authors:
   - GitHub Copilot Learning Hub Team
-lastUpdated: 2026-07-13
+lastUpdated: 2026-08-01
 estimatedReadingTime: '10 minutes'
 tags:
   - configuration
@@ -223,7 +223,7 @@ The `~/.agents/skills/` path aligns with the VS Code GitHub Copilot for Azure ex
 
 | Field | Description | Example values |
 |-------|-------------|----------------|
-| `model` | The AI model to use for this repository | `"claude-sonnet-4"`, `"gpt-4.1"`, `"claude-sonnet-5"` |
+| `model` | The AI model to use for this repository | `"claude-sonnet-4"`, `"gpt-4.1"`, `"claude-sonnet-5"`, `"claude-opus-5"`, `"grok-4.5"`, `"gemini-3.6-flash"` |
 | `effortLevel` | Reasoning effort level | `"low"`, `"medium"`, `"high"` |
 | `contextTier` | How much context to include | `"default"`, `"full"` |
 
@@ -448,6 +448,16 @@ The model picker opens in a **full-screen view** with inline reasoning effort ad
 **Auto mode and server-side model routing** (v1.0.43+): When you select **Auto** as your model, the CLI uses server-side model routing for real-time model selection. Instead of locking in a single model at session start, Auto mode evaluates each request and routes it to the most appropriate model dynamically. This means straightforward questions can be handled by a faster model while complex reasoning tasks are automatically escalated — without you needing to switch models manually.
 
 **Model family aliases** (v1.0.64+): Instead of typing a full model name, you can use short family aliases in the model setting: `opus`, `sonnet`, `haiku` (Anthropic), and `gpt`, `gemini` (Google/OpenAI). The CLI resolves the alias to the latest available model in that family. This is especially useful in scripts or configuration files where you want to track the best model in a family without hardcoding a version string.
+
+**Plan mode model** *(v1.0.74+)*: Use `/model plan` (or `/model --plan`) to pick a separate model used specifically while in plan mode. Pass a model ID to set it, `off` to clear it, or no argument to open the picker. The plan-mode model reverts to the session model when you leave plan mode:
+
+```
+/model plan                  # open the picker to select a plan-mode model
+/model plan claude-opus-5    # use Claude Opus 5 for planning
+/model plan off              # revert to the session model in plan mode
+```
+
+This lets you use a more capable (and thorough) model for the planning stage while switching to a faster model for execution — useful when you want high-quality plans without paying the cost on every tool call.
 
 ### CLI Session Commands
 
@@ -717,6 +727,14 @@ Use `/autopilot` when you want to flip between supervised and unsupervised opera
 
 > **Read-only `gh` CLI commands (v1.0.46+)**: Read-only `gh` commands — such as `gh issue list`, `gh pr view`, `gh run status`, and other commands that don't write to GitHub — are **automatically approved** without a permission prompt. Only commands that write to GitHub (like creating issues, merging PRs) still require explicit approval. This reduces friction during exploratory sessions where you frequently check issue or PR status.
 
+The `/permissions` command *(v1.0.78+)* is a unified way to switch between approval modes from within a session, replacing the need to juggle `/allow-all`, `/autopilot`, and other mode-specific commands:
+
+```
+/permissions          # open the permissions picker
+```
+
+Use `/permissions` when you want to change how tool approvals work mid-session (e.g., switch from interactive to autopilot, or engage the auto-judge) without remembering the exact command for each mode.
+
 The `--effort` flag (shorthand for `--reasoning-effort`) controls how much computational reasoning the model applies to a request:
 
 ```bash
@@ -760,6 +778,18 @@ copilot --no-sandbox -p "Set up development environment with system tools"
 ```
 
 These flags apply only to the current invocation — your persisted sandbox preference remains unchanged.
+
+The `allowDevToolCaches` sandbox setting *(v1.0.78+)* is on by default and grants sandboxed builds access to your toolchain caches, package registries, and installed tools (npm, pip, go modules, etc.), so builds work correctly inside the sandbox without extra configuration. Set it to `false` in your config to opt out if you want stricter isolation:
+
+```json
+{
+  "sandbox": {
+    "allowDevToolCaches": false
+  }
+}
+```
+
+Disabling this forces the sandbox to rebuild dependencies from scratch on every run, which is slower but ensures full isolation from the local environment.
 
 The `--attachment` flag (available in prompt mode, `-p`) lets you attach files — images or native documents — to the initial prompt in non-interactive mode:
 

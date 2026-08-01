@@ -3,7 +3,7 @@ title: 'Installing and Using Plugins'
 description: 'Learn how to find, install, and manage plugins that extend GitHub Copilot CLI with reusable agents, skills, hooks, and integrations.'
 authors:
   - GitHub Copilot Learning Hub Team
-lastUpdated: 2026-07-13
+lastUpdated: 2026-08-01
 estimatedReadingTime: '8 minutes'
 tags:
   - plugins
@@ -73,6 +73,8 @@ The `plugin.json` manifest declares what the plugin contains:
   ]
 }
 ```
+
+> **Open Plugin Spec v1 *(v1.0.74+)***: The CLI supports Open Plugin Spec v1 plugin manifests in addition to the native `plugin.json` format. This means you can use plugins authored for the broader MCP ecosystem that follow the Open Plugin Spec standard. MCP server configurations can also be loaded from `mcp.json` files bundled with plugins.
 
 ## Why Use Plugins?
 
@@ -247,6 +249,24 @@ When you install a plugin, its components become available to Copilot CLI automa
 - **MCP servers** extend the tools available to agents
 
 You don't need to do any additional configuration after installing — the plugin's components integrate seamlessly into your workflow. Plugins take effect immediately after installation without requiring a Copilot CLI restart.
+
+### Enabling and Disabling Plugin Components *(v1.0.76+)*
+
+The `/plugins` command lets you enable or disable individual plugin components without uninstalling the plugin. This is useful when you want a plugin installed but only want certain parts active (e.g., keep the agents but disable the hooks for a session):
+
+```
+/plugins          # open the plugins management view
+```
+
+From the plugins view you can toggle individual items on or off:
+
+- **Plugins** — enable or disable an entire plugin and all its components
+- **Instructions** — toggle specific instruction files
+- **Agents** — enable or disable specific agent definitions
+- **LSP servers** — toggle language server integrations
+- **Hooks** — enable or disable specific hooks
+
+Changes take effect immediately for the current session. This replaces the need to uninstall and reinstall plugins when you want temporary control over which components are active.
 
 ## Plugins from This Repository
 
