@@ -3,7 +3,7 @@ title: 'Copilot Configuration Basics'
 description: 'Learn how to configure GitHub Copilot at user, workspace, and repository levels to optimize your AI-assisted development experience.'
 authors:
   - GitHub Copilot Learning Hub Team
-lastUpdated: 2026-07-13
+lastUpdated: 2026-08-02
 estimatedReadingTime: '10 minutes'
 tags:
   - configuration
@@ -428,7 +428,8 @@ CLI settings use **camelCase** naming. Key settings added in recent releases:
 | `continueOnAutoMode` | Automatically switch to the auto model on rate limit instead of pausing |
 | `proxy` | HTTP(S) proxy URL for all outbound CLI requests (e.g., `http://proxy.example.com:8080`) (v1.0.64+) |
 | `sessionLimits` | Restrict credit or turn usage for a session; limits apply across the current conversation and reset on `/clear` (v1.0.66+) |
-| `stayInAutopilot` | Keep the CLI in autopilot mode after an autopilot task completes, instead of returning to interactive mode (v1.0.69+) |
+| `stayInAutopilot` | Keep the CLI in autopilot mode after an autopilot task completes, instead of returning to interactive mode. **Default: `true` as of v1.0.76** — set to `false` to return to interactive mode after each task (v1.0.69+) |
+| `allowDevToolCaches` | Grant sandboxed builds access to toolchain caches, registries, and installs so builds work without extra setup. Default: `true` (v1.0.78+) |
 
 > **Note**: Older snake_case names (e.g., `include_gitignored`, `auto_updates_channel`) are still accepted for backward compatibility, but camelCase is now the preferred format.
 
@@ -448,6 +449,8 @@ The model picker opens in a **full-screen view** with inline reasoning effort ad
 **Auto mode and server-side model routing** (v1.0.43+): When you select **Auto** as your model, the CLI uses server-side model routing for real-time model selection. Instead of locking in a single model at session start, Auto mode evaluates each request and routes it to the most appropriate model dynamically. This means straightforward questions can be handled by a faster model while complex reasoning tasks are automatically escalated — without you needing to switch models manually.
 
 **Model family aliases** (v1.0.64+): Instead of typing a full model name, you can use short family aliases in the model setting: `opus`, `sonnet`, `haiku` (Anthropic), and `gpt`, `gemini` (Google/OpenAI). The CLI resolves the alias to the latest available model in that family. This is especially useful in scripts or configuration files where you want to track the best model in a family without hardcoding a version string.
+
+**New models (v1.0.76+)**: The `grok-4.5` model from xAI is now available. Shell completion for `--model` also now suggests `auto` and all supported model names, making it easy to discover available options without consulting documentation.
 
 ### CLI Session Commands
 
@@ -717,6 +720,14 @@ Use `/autopilot` when you want to flip between supervised and unsupervised opera
 
 > **Read-only `gh` CLI commands (v1.0.46+)**: Read-only `gh` commands — such as `gh issue list`, `gh pr view`, `gh run status`, and other commands that don't write to GitHub — are **automatically approved** without a permission prompt. Only commands that write to GitHub (like creating issues, merging PRs) still require explicit approval. This reduces friction during exploratory sessions where you frequently check issue or PR status.
 
+The `/permissions` command *(v1.0.78+)* provides a single interface to switch between all approval modes — interactive, autopilot, allow-all, and auto allow-all — without needing to know which slash command to use for each mode:
+
+```
+/permissions        # open the permissions/approval mode selector
+```
+
+This replaces the need to remember whether to use `/allow-all`, `/autopilot`, or `/allow-all auto` — the dialog presents all options and explains what each mode does.
+
 The `--effort` flag (shorthand for `--reasoning-effort`) controls how much computational reasoning the model applies to a request:
 
 ```bash
@@ -760,6 +771,17 @@ copilot --no-sandbox -p "Set up development environment with system tools"
 ```
 
 These flags apply only to the current invocation — your persisted sandbox preference remains unchanged.
+
+**Web OAuth login flow** *(v1.0.77+)*: `copilot login` now defaults to a browser-based OAuth flow on local interactive terminals, making authentication faster and more familiar. The device-code flow remains the default on remote or headless terminals. You can force either mode explicitly:
+
+```bash
+copilot login --web-flow      # force browser-based OAuth
+copilot login --device-code   # force the device-code flow
+```
+
+Or pick interactively via the `/login` command. No separate setup is required — the correct flow is selected automatically based on your terminal type.
+
+**Enterprise managed sandbox policy** *(v1.0.77+)*: Administrators can enforce a minimum sandbox security floor using macOS or Windows native MDM settings. Managed settings tighten (but never loosen) the user's sandbox policy. Users can see the org-configured values in the `/sandbox` dialog, where managed fields are shown as locked and the managed filesystem paths are visible for confirmation. This gives organizations a reliable way to enforce sandbox policy at the OS level without relying on per-user configuration.
 
 The `--attachment` flag (available in prompt mode, `-p`) lets you attach files — images or native documents — to the initial prompt in non-interactive mode:
 
