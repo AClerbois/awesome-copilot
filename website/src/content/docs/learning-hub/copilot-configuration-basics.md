@@ -3,7 +3,7 @@ title: 'Copilot Configuration Basics'
 description: 'Learn how to configure GitHub Copilot at user, workspace, and repository levels to optimize your AI-assisted development experience.'
 authors:
   - GitHub Copilot Learning Hub Team
-lastUpdated: 2026-07-13
+lastUpdated: 2026-08-04
 estimatedReadingTime: '10 minutes'
 tags:
   - configuration
@@ -449,6 +449,8 @@ The model picker opens in a **full-screen view** with inline reasoning effort ad
 
 **Model family aliases** (v1.0.64+): Instead of typing a full model name, you can use short family aliases in the model setting: `opus`, `sonnet`, `haiku` (Anthropic), and `gpt`, `gemini` (Google/OpenAI). The CLI resolves the alias to the latest available model in that family. This is especially useful in scripts or configuration files where you want to track the best model in a family without hardcoding a version string.
 
+**grok-4.5** (v1.0.76+): xAI's `grok-4.5` model is now supported. Select it from the model picker or set it via the `model` config key.
+
 ### CLI Session Commands
 
 The `/settings` command (v1.0.61+) opens an interactive dialog to browse and edit all user settings in one place. Use it to discover available settings, toggle options, and update values without manually editing your config file:
@@ -507,13 +509,13 @@ You can also press **x** on a highlighted session in the session picker (`--resu
 
 In the session picker, press **`s`** to cycle the sort order: relevance, last used, created, or name. The picker also shows the branch name and idle/in-use status for each session.
 
-The `/rewind` command opens a timeline picker that lets you roll back the conversation to any earlier point in history, reverting both the conversation and any file changes made after that point. You can also trigger it by pressing **double-Esc**:
+The `/rewind` command opens a timeline picker that lets you roll back the conversation to any earlier point in history. You can also trigger it by pressing **double-Esc**:
 
 ```
 /rewind
 ```
 
-Use `/rewind` when you want to branch off from a different point in the conversation, rather than just undoing the most recent turn.
+When you select a rewind point, you can choose to restore **conversation only** or **conversation + files**. The command restores only the files Copilot changed — it no longer requires git, so it works in any directory. Files whose contents no longer match what Copilot last wrote are skipped. Use `/rewind` when you want to branch off from a different point in the conversation, rather than just undoing the most recent turn.
 
 The `/undo` command reverts the last turn—including any file changes the agent made—letting you course-correct without manually undoing edits:
 
@@ -556,6 +558,14 @@ In v1.0.66+, you can pass a task description to `/worktree` to name the branch f
 This creates a branch named from your task description and begins working on it immediately, making it easy to spin up parallel work without stopping to think of a branch name.
 
 After the command runs, the session is inside the new worktree. Use this when you want to work on a second task in parallel without stashing changes or opening a new terminal. In v1.0.64+ you can also use the experimental `--worktree` flag at startup (`copilot -w [name]`) to create or reuse a worktree under `<repo>.worktrees/` before the session begins.
+
+The `/new-worktree` command *(v1.0.78+, experimental)* creates a **new git worktree and starts a new Copilot session** rooted in it, leaving your current session untouched. Unlike `/worktree` which moves the current session into a worktree, `/new-worktree` spawns a fresh session in a separate worktree so you can work on two independent branches simultaneously:
+
+```
+/new-worktree my-feature-branch
+```
+
+This is useful when you want to hand off a branch to a parallel session without interrupting your current work. Enable with `/experimental on` if the command is not yet visible.
 
 The `/every` command (also available as `/loop` since v1.0.64) schedules a recurring prompt to run automatically at a specified interval. The companion `/after` command runs a prompt once after a specified delay. Both are useful for self-paced automation — polling for results, periodically summarizing progress, or triggering other slash commands on a timer:
 
@@ -624,6 +634,16 @@ The `/diagnose` command (v1.0.64+) analyzes the current session's logs and surfa
 ```
 
 Use `/diagnose` when a session is behaving unexpectedly — it inspects session logs and reports what it finds, making it easier to share diagnostics with support or understand what happened internally.
+
+The `/limits predict` command *(v1.0.76+)* analyzes your recent session history and suggests an appropriate AI-credit limit for the current session based on similar past sessions:
+
+```
+/limits predict
+```
+
+Use it before starting a long-running task to set a reasonable budget for autonomous work, reducing the risk of unexpected credit consumption.
+
+**Sessions sidebar** *(v1.0.76+, experimental)*: Enable with `/experimental on` to get a new sidebar panel for managing multiple concurrent sessions — switch between them, spawn new ones, and see each session's status at a glance, all without leaving the current session.
 
 **Keyboard shortcuts for queuing messages**: Use **Ctrl+Q** or **Ctrl+Enter** to queue a message (send it while the agent is still working). **Ctrl+D** no longer queues messages — it now has its default terminal behavior. If you have muscle memory for Ctrl+D queuing, switch to Ctrl+Q.
 
@@ -711,6 +731,14 @@ The `/autopilot` command (v1.0.45+) is a quick in-session toggle that switches b
 
 Use `/autopilot` when you want to flip between supervised and unsupervised operation mid-session without typing out the full `/allow-all on` or `/allow-all off` commands.
 
+The `/permissions` command *(v1.0.78+)* lets you switch your approval mode directly from within a session, without leaving the conversation:
+
+```
+/permissions      # open the approval mode selector
+```
+
+Use `/permissions` to move between interactive (ask for every tool), autopilot (approve all), auto allow-all (LLM judge), or plan mode without restarting the session.
+
 > **Enhanced autopilot (v1.0.64+)**: When autopilot mode is active — including when launched with `--autopilot` at startup or during automatic continuation turns — the agent automatically handles elicitation dialogs, `ask_user` prompts, sampling requests, and permission prompts without surfacing them as interactive dialogs. This means long-running automated sessions can proceed end-to-end without manual confirmation steps.
 
 > **Auto allow-all mode (v1.0.69+)**: In addition to the standard allow-all mode (which approves everything), the CLI now supports an **auto allow-all** mode that uses an LLM judge to evaluate each tool request. When enabled, the judge automatically approves requests it evaluates as acceptable, and asks you for manual confirmation only for requests it considers risky. This gives you a middle ground between full autopilot and fully supervised operation — most routine actions proceed automatically while unusual or potentially dangerous actions still surface for your review. As of v1.0.69-3, this mode requires experimental features to be enabled — use `/experimental on` or start the CLI with `--experimental` — then activate it with `/allow-all auto`. The previous `AUTO_APPROVAL` environment variable approach has been removed in favour of experimental mode.
@@ -760,6 +788,16 @@ copilot --no-sandbox -p "Set up development environment with system tools"
 ```
 
 These flags apply only to the current invocation — your persisted sandbox preference remains unchanged.
+
+**`allowDevToolCaches` sandbox setting** *(v1.0.78+)*: This setting (on by default) grants sandboxed builds access to toolchain caches, package registries, and local tool installations (npm, pip, cargo, etc.), so builds work inside the sandbox without extra setup. Set it to `false` to opt out and run in a stricter sandboxed environment:
+
+```json
+{
+  "sandbox": {
+    "allowDevToolCaches": false
+  }
+}
+```
 
 The `--attachment` flag (available in prompt mode, `-p`) lets you attach files — images or native documents — to the initial prompt in non-interactive mode:
 
