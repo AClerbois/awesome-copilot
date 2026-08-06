@@ -16,6 +16,8 @@ New to GitHub Copilot? Start here to understand the tools available to you.
 
 **Terminal**: Looking for a guided path into GitHub Copilot from the terminal? Explore the [Copilot CLI for Beginners](cli-for-beginners/) with a text-based experience or the [YouTube video series](https://www.youtube.com/watch?v=BDxRhhs36ns&list=PL0lo9MOBetEHvO-spzKBAITkkTqv4RvNl).
 
+**VS Code**: Learn about the latest Copilot features in [GitHub Copilot in VS Code](copilot-in-vs-code/), including multi-window sessions, `/btw` side chats, live status pills, and browser element commenting.
+
 ## Fundamentals
 
 Essential concepts to tailor GitHub Copilot beyond its default experience. Start with
