@@ -3,7 +3,7 @@ title: 'Using the Copilot Coding Agent'
 description: 'Learn how to use GitHub Copilot coding agent to autonomously work on issues, generate pull requests, and automate development tasks.'
 authors:
   - GitHub Copilot Learning Hub Team
-lastUpdated: 2026-05-13
+lastUpdated: 2026-08-07
 estimatedReadingTime: '12 minutes'
 tags:
   - coding-agent
@@ -333,6 +333,45 @@ This repository provides a curated collection of agents, skills, and hooks desig
 4. The hooks will run automatically during coding agent sessions
 
 > **Example workflow**: Combine a `test-specialist` agent with a `database-migrations` skill and a linting hook. Assign an issue to the coding agent using the test-specialist agent — it will automatically pick up the migrations skill when relevant, and the hook ensures all code is formatted before completion.
+
+## Controlling Approval Modes with /permissions
+
+*(v1.0.78+)* The `/permissions` command lets you switch between approval modes during a session without restarting:
+
+```
+/permissions
+```
+
+This opens an interactive panel where you can choose between:
+- **Interactive** — Copilot prompts for approval before each tool execution
+- **Autopilot** — Copilot runs without asking for approval (subject to sandbox restrictions)
+- **Plan** — Copilot generates a plan but waits for your approval before executing
+
+You can also change modes at any time from the command line:
+
+```bash
+copilot --mode autopilot
+copilot --mode plan
+```
+
+Use `/permissions` when you want to shift from interactive review to autopilot mid-session — for example, after you've verified the agent is on track and want it to finish autonomously.
+
+## Working with Multiple Worktrees
+
+*(v1.0.78+, experimental)* The `/new-worktree` command creates a new git worktree and starts a fresh conversation in it, letting you run a parallel agent session on a separate branch without switching contexts:
+
+```
+/new-worktree
+```
+
+This is useful when you want to:
+- Work on a second task while the current agent is still running
+- Compare two approaches in separate branches side-by-side
+- Keep a long-running task isolated while you start something new
+
+Each worktree gets its own branch and isolated environment. This is the same worktree isolation that the GitHub Copilot app uses for parallel sessions, now available directly in the CLI.
+
+> **Note**: `/new-worktree` is currently experimental. Enable experimental features with `/experimental on`.
 
 ## Remote Control
 

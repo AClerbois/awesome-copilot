@@ -3,7 +3,7 @@ title: 'Installing and Using Plugins'
 description: 'Learn how to find, install, and manage plugins that extend GitHub Copilot CLI with reusable agents, skills, hooks, and integrations.'
 authors:
   - GitHub Copilot Learning Hub Team
-lastUpdated: 2026-07-13
+lastUpdated: 2026-08-07
 estimatedReadingTime: '8 minutes'
 tags:
   - plugins
@@ -237,6 +237,23 @@ Plugins loaded this way appear in `/plugin list` under a separate **External Plu
 - **Marketplace plugins**: `~/.copilot/installed-plugins/MARKETPLACE/PLUGIN-NAME/`
 - **Direct installs**: `~/.copilot/installed-plugins/_direct/PLUGIN-NAME/`
 
+## Enabling and Disabling Plugin Components
+
+*(v1.0.76+)* You can selectively enable or disable individual plugin components — plugins, instructions, agents, LSP servers, and hooks — without uninstalling the plugin entirely. This is useful when you want to temporarily pause a hook that's causing noise or disable an agent you don't need for a particular session.
+
+From an interactive session, use the `/plugins` command to open the plugin management panel:
+
+```
+/plugins
+```
+
+The panel lists all installed plugins and their components. Toggle any component on or off directly from this view. Changes take effect immediately in the current session and persist across future sessions.
+
+This is especially helpful for:
+- **Debugging** — disable hooks one at a time to isolate which one is causing an issue
+- **Focus** — turn off agents or skills you don't need for the current task
+- **Gradual adoption** — roll out a new plugin's hooks incrementally across your team
+
 ## How Plugins Work at Runtime
 
 When you install a plugin, its components become available to Copilot CLI automatically:
@@ -278,7 +295,8 @@ See [Using the Copilot Coding Agent](../using-copilot-coding-agent/) for details
 
 - **Start with a marketplace plugin** before building your own — there may already be one that fits your needs
 - **Keep plugins focused** — a plugin for "Rails development" is better than a plugin for "everything"
-- **Check for updates regularly** — run `copilot plugin update` to get the latest improvements
+- **Let first-party plugins self-update** — as of v1.0.78, first-party plugins automatically update to the latest version at session start, so you always have the newest capabilities
+- **Check for updates regularly** — run `copilot plugin update` to keep third-party and marketplace plugins current
 - **Review what you install** — plugins run code on your machine, so inspect unfamiliar plugins before installing
 - **Use plugins for team standards** — publish an internal plugin to ensure every team member has the same agents, skills, and hooks
 - **Remove unused plugins** — declutter with `copilot plugin uninstall` to keep your environment clean
