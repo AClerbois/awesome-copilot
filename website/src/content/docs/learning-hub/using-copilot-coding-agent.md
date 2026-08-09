@@ -3,7 +3,7 @@ title: 'Using the Copilot Coding Agent'
 description: 'Learn how to use GitHub Copilot coding agent to autonomously work on issues, generate pull requests, and automate development tasks.'
 authors:
   - GitHub Copilot Learning Hub Team
-lastUpdated: 2026-05-13
+lastUpdated: 2026-08-09
 estimatedReadingTime: '12 minutes'
 tags:
   - coding-agent
@@ -333,6 +333,59 @@ This repository provides a curated collection of agents, skills, and hooks desig
 4. The hooks will run automatically during coding agent sessions
 
 > **Example workflow**: Combine a `test-specialist` agent with a `database-migrations` skill and a linting hook. Assign an issue to the coding agent using the test-specialist agent — it will automatically pick up the migrations skill when relevant, and the hook ensures all code is formatted before completion.
+
+## Approval Modes and Permissions
+
+You can control how much autonomy the coding agent has using the `/permissions` command or the `--mode` flag:
+
+```bash
+# Start a session in autopilot mode (no approvals required)
+copilot --mode autopilot
+
+# Start in interactive mode (approve each action)
+copilot --mode interactive
+```
+
+From inside a session, switch modes with:
+
+```
+/permissions          # show current approval mode
+/permissions allow    # approve all actions for this session
+/permissions ask      # return to interactive approval
+```
+
+### Combining Plan Mode with Autopilot
+
+*(v1.0.79-7+)* You can now combine `--plan` with `--mode autopilot` to let Copilot first create an implementation plan (which you review and approve), and then execute it automatically without further prompts:
+
+```bash
+copilot --plan --mode autopilot
+```
+
+This gives you a checkpoint to redirect before any code is written, while still benefiting from uninterrupted execution once you approve the plan.
+
+## Multiple Concurrent Sessions
+
+The CLI supports managing multiple sessions from a single window using the **Sessions sidebar** *(v1.0.79-5+)*. This is especially useful when running the coding agent on multiple issues in parallel.
+
+Open the sidebar from within a session:
+
+```
+/sessions             # toggle the Sessions sidebar
+```
+
+From the sidebar you can:
+- Switch between running sessions with arrow keys (Enter or click)
+- Spawn new sessions (`n`)
+- Close a session (`x` twice)
+
+Session state persists across CLI restarts, so you can pick up where you left off. Enable it with:
+
+```
+/experimental on
+```
+
+Or, if you use the GitHub Copilot app, the **My Work** view gives you a graphical equivalent — see [Getting Started with the GitHub Copilot app](../github-copilot-app/).
 
 ## Remote Control
 

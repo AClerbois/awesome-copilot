@@ -3,7 +3,7 @@ title: 'Installing and Using Plugins'
 description: 'Learn how to find, install, and manage plugins that extend GitHub Copilot CLI with reusable agents, skills, hooks, and integrations.'
 authors:
   - GitHub Copilot Learning Hub Team
-lastUpdated: 2026-07-13
+lastUpdated: 2026-08-09
 estimatedReadingTime: '8 minutes'
 tags:
   - plugins
@@ -34,6 +34,7 @@ A plugin bundles one or more of the following components:
 | **MCP Servers** | Model Context Protocol integrations for external tools | `.mcp.json` or `.github/mcp.json` |
 | **LSP Servers** | Language Server Protocol integrations | `lsp.json` or `.github/lsp.json` |
 | **Extensions** | IDE extensions installable via the plugin marketplace (v1.0.62+) | `extensions/` |
+| **Canvas Extensions** | Interactive work surfaces for the GitHub Copilot app (v1.0.79-7+) | `com.github.copilot/extensions/` |
 
 A plugin might include all of these or just one — for example, a plugin could provide a single specialized agent, or an entire development toolkit with multiple agents, skills, hooks, and MCP server configurations working together.
 
@@ -248,6 +249,14 @@ When you install a plugin, its components become available to Copilot CLI automa
 
 You don't need to do any additional configuration after installing — the plugin's components integrate seamlessly into your workflow. Plugins take effect immediately after installation without requiring a Copilot CLI restart.
 
+### Automatic Plugin Updates
+
+First-party plugins (those installed from the official `copilot-plugins` marketplace) automatically update to the latest version at session start — no manual `copilot plugin update` needed. Community and third-party plugins still require a manual update:
+
+```bash
+copilot plugin update my-plugin
+```
+
 ## Plugins from This Repository
 
 This repository (`awesome-copilot`) serves as both a collection of individual resources _and_ a plugin marketplace. You can use it in two ways:
@@ -273,6 +282,27 @@ If you only need a single agent or skill (rather than a full plugin), you can st
 - Copy a hook configuration into `.github/hooks/`
 
 See [Using the Copilot Coding Agent](../using-copilot-coding-agent/) for details on this approach.
+
+## Canvas Extensions in Plugins
+
+*(v1.0.79-7+)* Agent plugins can now ship **canvas extensions** — interactive work surfaces for the GitHub Copilot app. When a plugin includes a canvas extension, it appears automatically inside the app alongside the plugin's agents and skills.
+
+Canvas extensions are placed under a `com.github.copilot/extensions/` directory in the plugin:
+
+```
+my-plugin/
+├── .github/plugin/plugin.json
+├── agents/
+├── skills/
+└── com.github.copilot/
+    └── extensions/
+        └── my-canvas/
+            └── extension.mjs
+```
+
+This makes it possible to distribute a fully integrated experience — agents, skills, hooks, and interactive canvases — as a single installable unit.
+
+> **See also**: [Working with Canvas Extensions](../working-with-canvas-extensions/) for how to create and use canvases in the GitHub Copilot app.
 
 ## Best Practices
 
