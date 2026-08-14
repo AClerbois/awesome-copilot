@@ -3,7 +3,7 @@ title: '01 · First Steps'
 description: 'Experience your first GitHub Copilot CLI demos and learn the three main interaction modes.'
 authors:
   - GitHub Copilot Learning Hub Team
-lastUpdated: 2026-07-17
+lastUpdated: 2026-08-14
 ---
 
 ![Chapter 01: First Steps](/images/learning-hub/copilot-cli-for-beginners/01/chapter-header.png)
@@ -439,13 +439,20 @@ That's it for getting started! As you become comfortable, you can explore additi
 
 | Command | What It Does |
 |---------|--------------|
-| `/resume` | Switch to a different session (optionally specify session ID) |
-| `/rename` | Rename the current session |
+| `/clear` | Abandons the current session (no history saved) and starts a fresh conversation |
+| `/compact` | Summarize conversation to reduce context usage (optionally add focus instructions, e.g. `/compact focus on the bug list`) |
 | `/context` | Show context window token usage and visualization |
-| `/usage` | Display session usage metrics and statistics |
-| `/session` | Show session info and workspace summary |
-| `/compact` | Summarize conversation to reduce context usage |
-| `/share` | Export session as markdown file or GitHub gist |
+| `/keep-alive` | Prevent your system from sleeping while Copilot CLI is active — handy for long-running tasks on a laptop |
+| `/memory [on\|off\|show]` | Enable, disable, or view persistent memory — facts and preferences remembered across all sessions |
+| `/new` | Ends the current session (saving it to history for search/resume) and starts a fresh conversation. |
+| `/resume` | Switch to a different session (optionally specify session ID or name) |
+| `/rename` | Rename the current session (omit the name to auto-generate one) |
+| `/rewind` | Open a timeline picker to roll back to any earlier point in the conversation; optionally restores the files Copilot changed (works without git) |
+| `/usage` | Display session usage metrics and statistics, including quota progress bars |
+| `/session` | Show session info and workspace summary; use `/session delete`, `/session delete <id>`, or `/session delete-all` to remove sessions |
+| `/share` | Export session as a markdown file, GitHub gist, or self-contained HTML file |
+| `/every <interval> <prompt>` | Schedule a prompt to run on a recurring interval (e.g., `/every 1h summarize new commits`). Use natural language for the interval. `/loop` is an alias for `/every`. |
+| `/after <time> <prompt>` | Schedule a prompt to run once after a delay (e.g., `/after 30m run tests`). Use natural language for the time. |
 
 ### Help and Feedback
 
