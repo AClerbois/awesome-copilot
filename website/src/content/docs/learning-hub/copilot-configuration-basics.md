@@ -3,7 +3,7 @@ title: 'Copilot Configuration Basics'
 description: 'Learn how to configure GitHub Copilot at user, workspace, and repository levels to optimize your AI-assisted development experience.'
 authors:
   - GitHub Copilot Learning Hub Team
-lastUpdated: 2026-07-13
+lastUpdated: 2026-08-14
 estimatedReadingTime: '10 minutes'
 tags:
   - configuration
@@ -470,6 +470,8 @@ The settings dialog supports search — type to filter settings by name. Changes
 
 These flags mirror the **Repo** and **Repo (local)** scope tabs available in the `/settings` dashboard (v1.0.71+), making it easier to manage per-repository vs. user-global configuration without ambiguity. In v1.0.71+, the `/settings` dashboard also shows **Repo** and **Repo (local)** tabs alongside the existing user-level view, giving you a unified place to see which settings are applied at each layer.
 
+> **Session-scoped model selection (v1.0.79+)**: `/model` is now **session-scoped by default** — changing the model affects only the current session and does not persist to future sessions. To set a persistent model default for future sessions, use `/config model` instead of `/model`. The `--repo` and `--local` flags on `/model` continue to work for reading or writing persistent per-repository and per-user model preferences.
+
 GitHub Copilot CLI has two commands for managing session state, with distinct behaviours:
 
 | Command | Behaviour |
@@ -743,6 +745,14 @@ copilot --plan          # start in plan mode (propose without executing)
 ```
 
 This is useful in scripts or CI pipelines where you want the CLI to immediately begin working in a specific mode without an interactive prompt.
+
+> **Plan-then-implement (v1.0.79+)**: You can now combine `--plan` with `--mode autopilot` to have Copilot plan first and then implement automatically without waiting for your approval between phases:
+>
+> ```bash
+> copilot --plan --mode autopilot "Add rate limiting to the login endpoint"
+> ```
+>
+> This is useful for well-defined tasks where you trust the plan Copilot would produce and want the full implementation to run end-to-end.
 
 The `--max-autopilot-continues` flag controls how many times Copilot can automatically continue in autopilot mode before pausing for confirmation. The default is 5:
 
