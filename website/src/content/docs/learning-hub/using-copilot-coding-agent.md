@@ -3,7 +3,7 @@ title: 'Using the Copilot Coding Agent'
 description: 'Learn how to use GitHub Copilot coding agent to autonomously work on issues, generate pull requests, and automate development tasks.'
 authors:
   - GitHub Copilot Learning Hub Team
-lastUpdated: 2026-05-13
+lastUpdated: 2026-08-15
 estimatedReadingTime: '12 minutes'
 tags:
   - coding-agent
@@ -376,6 +376,19 @@ Since v1.0.47, `--resume` also surfaces **cloud agent sessions that haven't yet 
 | No PR required | You can steer tasks that haven't yet opened a pull request |
 
 > **Note**: Remote control replaces the earlier "steering" feature. If you see references to steering in older documentation, remote control is the updated equivalent.
+
+## Multi-Client Sessions with Agent Host Protocol (AHP)
+
+*(v1.0.79+)* The **Agent Host Protocol (AHP)** extends remote control further by letting multiple terminal clients connect to a shared **host daemon** that owns the sessions. Unlike remote control (which connects to a cloud coding agent), AHP runs locally or connects to Codespaces and Mission Control cloud environments.
+
+Start with:
+```bash
+copilot --ahp
+```
+
+Multiple terminals can then attach to the same session and watch turns stream live. Use `/ahp codespace <name>` to forward a Codespace's copilotd port so you can join a session running in the cloud, or `/ahp cloud <env-id>` to connect to a Mission Control environment.
+
+For full AHP documentation — commands, host management, and multi-client workflows — see the [Agent Host Protocol section](../copilot-configuration-basics/#agent-host-protocol-ahp) in Copilot Configuration Basics.
 
 ## Hooks and the Coding Agent
 
