@@ -3,8 +3,7 @@ title: 'Understanding MCP Servers'
 description: 'Learn how Model Context Protocol servers extend GitHub Copilot with access to external tools, databases, and APIs.'
 authors:
   - GitHub Copilot Learning Hub Team
-lastUpdated: 2026-07-13
-estimatedReadingTime: '8 minutes'
+lastUpdated: 2026-08-16estimatedReadingTime: '8 minutes'
 tags:
   - mcp
   - tools
@@ -316,6 +315,14 @@ For example, a PostgreSQL server that can't connect because `DATABASE_URL` is no
 You can also open the `/mcp` manager while the agent is working to toggle servers on or off mid-turn. Add, edit, delete, and re-auth actions wait until the turn finishes, but enabling or disabling a server takes effect immediately.
 
 **Toggling servers on and off** (v1.0.66+): From the `/mcp` list view, you can **enable or disable individual MCP servers** without editing your config file. Select a server in the list and toggle it — disabled servers won't start in future sessions and their tools won't be available to agents. This is useful for temporarily disabling a server that's causing slowdowns or errors without removing it from your configuration entirely.
+
+**Re-enabling a disabled server for one run** (v1.0.79+): If a server is disabled in your settings but you need it for a single session, pass `--enable-mcp-server <name>` when starting Copilot. This overrides the disabled setting just for that run without permanently changing your configuration:
+
+```bash
+copilot --enable-mcp-server my-database-server
+```
+
+**Tool discovery timeout** (v1.0.79+): MCP server timeout settings now also apply to tool discovery — the initial phase where Copilot asks each server what tools it exposes. The default is **30 seconds**, which prevents slow servers from blocking session startup indefinitely. If a server consistently times out during discovery, check its startup logs and consider optimizing how it loads its tool list.
 
 **Common causes and fixes**:
 

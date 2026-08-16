@@ -3,7 +3,7 @@ title: 'Installing and Using Plugins'
 description: 'Learn how to find, install, and manage plugins that extend GitHub Copilot CLI with reusable agents, skills, hooks, and integrations.'
 authors:
   - GitHub Copilot Learning Hub Team
-lastUpdated: 2026-07-13
+lastUpdated: 2026-08-16
 estimatedReadingTime: '8 minutes'
 tags:
   - plugins
@@ -28,34 +28,38 @@ A plugin bundles one or more of the following components:
 
 | Component | What It Does | File Location |
 |-----------|-------------|---------------|
-| **Custom Agents** | Specialized AI assistants with tailored expertise | `agents/*.agent.md` |
+| **Custom Agents** | Specialized AI assistants with tailored expertise | `com.github.copilot/agents/*.agent.md` |
 | **Skills** | Discrete callable capabilities with bundled resources | `skills/*/SKILL.md` |
-| **Hooks** | Event handlers that intercept agent behavior | `hooks.json` or `hooks/` |
+| **Hooks** | Event handlers that intercept agent behavior | `com.github.copilot/hooks/hooks.json` |
 | **MCP Servers** | Model Context Protocol integrations for external tools | `.mcp.json` or `.github/mcp.json` |
-| **LSP Servers** | Language Server Protocol integrations | `lsp.json` or `.github/lsp.json` |
-| **Extensions** | IDE extensions installable via the plugin marketplace (v1.0.62+) | `extensions/` |
+| **LSP Servers** | Language Server Protocol integrations | `com.github.copilot/lsp.json` |
+| **Extensions** | IDE extensions installable via the plugin marketplace (v1.0.62+) | `com.github.copilot/extensions/` |
 
 A plugin might include all of these or just one — for example, a plugin could provide a single specialized agent, or an entire development toolkit with multiple agents, skills, hooks, and MCP server configurations working together.
 
 ### Example: What a Plugin Looks Like
 
-Here's the structure of a typical plugin:
+Here's the structure of a typical plugin (v1.0.79+ layout):
 
 ```
 my-plugin/
 ├── .github/
 │   └── plugin/
-│       └── plugin.json        # Plugin manifest (name, description, version)
-├── agents/
-│   ├── api-architect.agent.md
-│   └── test-specialist.agent.md
+│       └── plugin.json                    # Plugin manifest (name, description, version)
+├── com.github.copilot/
+│   ├── agents/
+│   │   ├── api-architect.agent.md
+│   │   └── test-specialist.agent.md
+│   └── hooks/
+│       └── hooks.json
 ├── skills/
 │   └── database-migrations/
 │       ├── SKILL.md
 │       └── scripts/migrate.sh
-├── hooks.json
 └── README.md
 ```
+
+> **Breaking change (v1.0.79)**: Agent Plugins spec plugins now load `commands/`, `agents/`, `rules/`, `hooks/hooks.json`, `lsp.json`, and `extensions/` only from the `com.github.copilot/` subdirectory — no longer from the plugin root. If you maintain a plugin, migrate these components into `com.github.copilot/`. Skills (`skills/`) are unaffected and remain at the plugin root.
 
 The `plugin.json` manifest declares what the plugin contains:
 
@@ -160,6 +164,24 @@ To automatically register an additional marketplace for everyone working in a re
 
 With this in place, team members automatically get the `my-org-plugins` marketplace available without running a separate `marketplace add` command. This replaces the older `marketplaces` setting, which was removed in v1.0.16.
 
+### Auto-Updating Marketplace Plugins
+
+*(v1.0.79+)* Set `"autoUpdate": true` on an `extraKnownMarketplaces` entry to automatically update its plugins at session start, so everyone in the repository always gets the latest version without running `copilot plugin update` manually:
+
+```json
+{
+  "extraKnownMarketplaces": [
+    {
+      "name": "my-org-plugins",
+      "source": "my-org/internal-plugins",
+      "autoUpdate": true
+    }
+  ]
+}
+```
+
+> **Note**: `autoUpdate` can be set in both user settings and managed (MDM/server) settings.
+
 ### Pinning a Marketplace to a Specific Commit
 
 *(v1.0.70+)* To ensure reproducibility and prevent unintended updates, you can pin a marketplace to an exact commit SHA using the `sha` field in the source configuration:
@@ -215,7 +237,10 @@ copilot plugin list
 # Update a plugin to the latest version
 copilot plugin update my-plugin
 
-# Refresh all marketplace catalogs (fetch the latest list of available plugins)
+# Refresh a specific marketplace catalog (fetch the latest list of available plugins)
+copilot plugin marketplace update my-org-plugins
+
+# Refresh all marketplace catalogs
 copilot plugin marketplace update
 
 # Remove a plugin

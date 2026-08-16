@@ -3,8 +3,7 @@ title: 'Copilot Configuration Basics'
 description: 'Learn how to configure GitHub Copilot at user, workspace, and repository levels to optimize your AI-assisted development experience.'
 authors:
   - GitHub Copilot Learning Hub Team
-lastUpdated: 2026-07-13
-estimatedReadingTime: '10 minutes'
+lastUpdated: 2026-08-16estimatedReadingTime: '10 minutes'
 tags:
   - configuration
   - setup
@@ -445,9 +444,20 @@ These files follow the same format as `config.json` and are loaded after the glo
 
 The model picker opens in a **full-screen view** with inline reasoning effort adjustment. Use the **← / →** arrow keys to change the reasoning effort level (`low`, `medium`, `high`) directly from the picker without leaving the session. The current reasoning effort level is also displayed in the model header (e.g., `claude-sonnet-4.6 (high)`) so you always know which level is active.
 
+*(v1.0.79+)* The model picker groups models into **Recent**, **Recommended**, **New**, and other sections. Press **Shift+Tab** to switch between grouping views and find the right model faster.
+
 **Auto mode and server-side model routing** (v1.0.43+): When you select **Auto** as your model, the CLI uses server-side model routing for real-time model selection. Instead of locking in a single model at session start, Auto mode evaluates each request and routes it to the most appropriate model dynamically. This means straightforward questions can be handled by a faster model while complex reasoning tasks are automatically escalated — without you needing to switch models manually.
 
 **Model family aliases** (v1.0.64+): Instead of typing a full model name, you can use short family aliases in the model setting: `opus`, `sonnet`, `haiku` (Anthropic), and `gpt`, `gemini` (Google/OpenAI). The CLI resolves the alias to the latest available model in that family. This is especially useful in scripts or configuration files where you want to track the best model in a family without hardcoding a version string.
+
+**Session-scoped vs. persistent model settings** (v1.0.79+): `/model` is now **session-scoped by default** — changes you make with `/model` apply only to the current session and don't affect future sessions. To set a persistent default for all future sessions, use `/config model` instead:
+
+```
+/model gpt-4.1            # change model for this session only
+/config model gpt-4.1     # set as your default for all future sessions
+```
+
+This separation makes it easier to experiment with different models in a session without accidentally changing your global preference.
 
 ### CLI Session Commands
 

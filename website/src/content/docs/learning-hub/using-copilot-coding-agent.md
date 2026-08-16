@@ -3,7 +3,7 @@ title: 'Using the Copilot Coding Agent'
 description: 'Learn how to use GitHub Copilot coding agent to autonomously work on issues, generate pull requests, and automate development tasks.'
 authors:
   - GitHub Copilot Learning Hub Team
-lastUpdated: 2026-05-13
+lastUpdated: 2026-08-16
 estimatedReadingTime: '12 minutes'
 tags:
   - coding-agent
@@ -376,6 +376,34 @@ Since v1.0.47, `--resume` also surfaces **cloud agent sessions that haven't yet 
 | No PR required | You can steer tasks that haven't yet opened a pull request |
 
 > **Note**: Remote control replaces the earlier "steering" feature. If you see references to steering in older documentation, remote control is the updated equivalent.
+
+## Working with Worktrees
+
+GitHub Copilot CLI integrates with Git worktrees to let you run agent sessions in isolated branches without switching your main working directory.
+
+### Starting a Session in a New Worktree
+
+*(v1.0.79+)* Use `/worktree new` to create a fresh branch in a new worktree and start an agent session there immediately:
+
+```
+/worktree new
+```
+
+This is particularly useful when you want to start autonomous work without disrupting the branch you're currently on. Each worktree is a fully independent copy of your repository — changes in one worktree don't affect others until you merge.
+
+You can also launch a worktree session from the command line with `--worktree`.
+
+### Controlling the Worktree Base Branch
+
+*(v1.0.79+)* By default, `--worktree`, `/worktree`, and `/worktree new` start from **HEAD** (your current commit). To always start from the remote default branch instead, set `worktreeBaseRef` in your settings:
+
+```json
+{
+  "worktreeBaseRef": "origin/main"
+}
+```
+
+This ensures each new worktree session begins from a known, up-to-date state rather than from whatever commit you happen to have checked out locally.
 
 ## Hooks and the Coding Agent
 
