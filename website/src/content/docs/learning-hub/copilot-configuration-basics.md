@@ -3,7 +3,7 @@ title: 'Copilot Configuration Basics'
 description: 'Learn how to configure GitHub Copilot at user, workspace, and repository levels to optimize your AI-assisted development experience.'
 authors:
   - GitHub Copilot Learning Hub Team
-lastUpdated: 2026-07-13
+lastUpdated: 2026-08-17
 estimatedReadingTime: '10 minutes'
 tags:
   - configuration
@@ -429,6 +429,7 @@ CLI settings use **camelCase** naming. Key settings added in recent releases:
 | `proxy` | HTTP(S) proxy URL for all outbound CLI requests (e.g., `http://proxy.example.com:8080`) (v1.0.64+) |
 | `sessionLimits` | Restrict credit or turn usage for a session; limits apply across the current conversation and reset on `/clear` (v1.0.66+) |
 | `stayInAutopilot` | Keep the CLI in autopilot mode after an autopilot task completes, instead of returning to interactive mode (v1.0.69+) |
+| `worktreeBaseRef` | Controls whether `/worktree`, `/worktree new`, and `--worktree` start from `HEAD` or the remote default branch. All three now default to `HEAD` (v1.0.79+) |
 
 > **Note**: Older snake_case names (e.g., `include_gitignored`, `auto_updates_channel`) are still accepted for backward compatibility, but camelCase is now the preferred format.
 
@@ -444,6 +445,8 @@ These files follow the same format as `config.json` and are loaded after the glo
 ### Model Picker
 
 The model picker opens in a **full-screen view** with inline reasoning effort adjustment. Use the **← / →** arrow keys to change the reasoning effort level (`low`, `medium`, `high`) directly from the picker without leaving the session. The current reasoning effort level is also displayed in the model header (e.g., `claude-sonnet-4.6 (high)`) so you always know which level is active.
+
+**Model groupings** (v1.0.79+): The model picker organises available models into sections — **Recent**, **Recommended**, **New**, and others — so it's easy to find the right model at a glance. Use **Shift+Tab** to cycle through alternative grouping views (for example, sorted by provider or capability).
 
 **Auto mode and server-side model routing** (v1.0.43+): When you select **Auto** as your model, the CLI uses server-side model routing for real-time model selection. Instead of locking in a single model at session start, Auto mode evaluates each request and routes it to the most appropriate model dynamically. This means straightforward questions can be handled by a faster model while complex reasoning tasks are automatically escalated — without you needing to switch models manually.
 
@@ -554,6 +557,16 @@ In v1.0.66+, you can pass a task description to `/worktree` to name the branch f
 ```
 
 This creates a branch named from your task description and begins working on it immediately, making it easy to spin up parallel work without stopping to think of a branch name.
+
+The `/worktree new` command *(v1.0.79+)* starts a **new session** in a new worktree — rather than switching the current session, it opens an independent session on a fresh worktree:
+
+```
+/worktree new
+```
+
+This is useful when you want to keep your current session running uninterrupted while spinning up an isolated parallel session on its own branch.
+
+> **`worktreeBaseRef` setting** (v1.0.79+): By default, `/worktree`, `/worktree new`, and `--worktree` all start from `HEAD`. Previously, `--worktree` defaulted to the remote default branch. Use the `worktreeBaseRef` setting to change this behaviour globally if you prefer a different starting point.
 
 After the command runs, the session is inside the new worktree. Use this when you want to work on a second task in parallel without stashing changes or opening a new terminal. In v1.0.64+ you can also use the experimental `--worktree` flag at startup (`copilot -w [name]`) to create or reuse a worktree under `<repo>.worktrees/` before the session begins.
 
@@ -741,6 +754,14 @@ copilot --mode agent    # start in agent mode (autonomous tool use)
 copilot --autopilot     # alias for --mode autopilot (allow-all)
 copilot --plan          # start in plan mode (propose without executing)
 ```
+
+*(v1.0.79+)* You can now combine `--plan` with `--mode autopilot` to **plan first and then implement automatically** — Copilot proposes a plan, waits for you to review it, and then switches to autopilot to carry it out without further prompting:
+
+```bash
+copilot --plan --mode autopilot -p "Refactor the authentication module"
+```
+
+This is useful for non-interactive automation where you want a planning step before execution but don't need to remain at the keyboard for the implementation.
 
 This is useful in scripts or CI pipelines where you want the CLI to immediately begin working in a specific mode without an interactive prompt.
 
