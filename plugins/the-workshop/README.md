@@ -37,8 +37,26 @@ A **desk** isn't a sub-agent — it's a peer with a history. Sub-agents inherit 
 
 The Workshop's live view is a **canvas extension** (🪨 Cairn) — `signals-dashboard` — that shows the pulse of every desk (score bars, patterns, escalations), auto-refreshing in the GitHub Copilot app.
 
-Each desk card also has an **open** button that launches a Copilot CLI right in
-that desk's folder, so you can sit down at a desk straight from the board.
+Each desk card has two launch choices:
+
+- **open** — the cost-aware repo profile. The desk keeps access to the Workshop
+  root for cross-desk journals and artifacts while ambient plugin MCPs are
+  suppressed.
+- **connected** — the full configured tool surface for work that needs external
+  systems such as issue trackers, mail, or service APIs.
+
+The summary bar also has a **Local** toggle. It is orthogonal to repo/connected:
+when available and on, the frontier desk may use
+[Sealed Delegation](https://github.com/jennyf19/sealed-delegation)'s
+`local-agent-delegation` skill for bounded read/evidence work. Availability is
+fail-closed (installed skill + qualified route receipt). Local output is a
+proposal and never earns savings credit on its own.
+
+Set `WORKSHOP_DESK_PROFILE=connected` to make the main **open** button use the
+full tool surface; in that mode the separate **connected** button is omitted.
+
+Both launch a CLI in the desk's folder. If Agency is installed, Cairn keeps
+using the existing Agency wrapper; otherwise it launches plain Copilot CLI.
 
 It ships as a separate extension. Install it alongside the plugin to get the live canvas:
 
