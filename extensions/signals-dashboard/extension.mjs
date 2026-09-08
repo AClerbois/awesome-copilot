@@ -5,14 +5,40 @@
 
 import { createServer } from "node:http";
 import { statSync, accessSync, realpathSync, constants as fsConstants } from "node:fs";
-import { readdir, readFile, writeFile, stat } from "node:fs/promises";
-import { join, delimiter, sep } from "node:path";
+import { readdir, readFile, writeFile, stat, rename, unlink, mkdir } from "node:fs/promises";
+import { join, delimiter, isAbsolute, sep, dirname } from "node:path";
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { joinSession, createCanvas } from "@github/copilot-sdk/extension";
+import {
+    buildDeskAgentArgv,
+    isDeskProfile,
+    isSafeQuotedWindowsCmdArg,
+    isSafeWindowsCmdShim,
+    isWindowsAppExecutionAlias,
+    normalizeDeskProfile,
+    parsePluginMcpNames,
+    quoteWindowsCmdArgument,
+} from "./launch-profile.mjs";
+import {
+    buildLocalDelegationLaunchEnv,
+    deskOrientPrompt,
+    formatLocalDelegationOpenNotice,
+    localDelegationPreferencePath,
+    normalizeLocalDelegationPreference,
+    parseLocalDelegationState,
+    resolveLocalDelegationAvailability,
+    resolveLocalDelegationLaunch,
+    serializeLocalDelegationState,
+    windowsLocalDelegationCmdPrefix,
+} from "./local-delegation.mjs";
 
 const servers = new Map();
 const STASH_TTL_MS = 48 * 60 * 60 * 1000;
+const MCP_DISCOVERY_TTL_MS = 5 * 60 * 1000;
+const MCP_DISCOVERY_MAX_BYTES = 1024 * 1024;
+const DEFAULT_DESK_PROFILE = normalizeDeskProfile(process.env.WORKSHOP_DESK_PROFILE);
+const mcpDiscoveryCache = new Map();
 
 // Serialize stash read-modify-write per workshop. The UI fires stash/restore
 // POSTs without awaiting each other, so two overlapping mutations could both
@@ -47,11 +73,10 @@ function isValidDeskName(name) {
 // path is then only ever passed as a spawn cwd, an argv element, or a
 // single-quoted literal inside the macOS Terminal command — never concatenated
 // raw onto a command line — so no character filtering of the path is required.
-function deskOrientPrompt(deskName) {
-    return `You are sitting down at the ${deskName} desk in this workshop. ` +
-        `Read journal.md in this folder first to pick up where the last session ` +
-        `left off, then continue the desk's work. Write your journal before you stop.`;
-}
+//
+// Local Delegation is orthogonal to repo/connected: it never changes the tool
+// surface. When effective, only the orientation prompt and child env mark that
+// the frontier desk may use the installed local-agent-delegation skill.
 
 // Spawn detached and resolve true only once the OS confirms the process
 // started ('spawn'), false on failure ('error', e.g. the binary is missing) so
@@ -83,48 +108,217 @@ function trySpawn(cmd, args, opts = {}) {
 // match, so auto-detection would pick the wrapper and the terminal would then
 // fail to run it with no fallback.
 function isExecutableFile(p) {
-    try {
-        if (!statSync(p).isFile()) return false;
-        if (process.platform !== "win32") accessSync(p, fsConstants.X_OK);
-        return true;
-    } catch { return false; }
+    return probeExecutableFile(p).ok;
 }
 
-function isOnPath(command) {
+function probeExecutableFile(p) {
+    try {
+        if (!statSync(p).isFile()) return { ok: false, errorCode: null };
+        if (process.platform !== "win32") accessSync(p, fsConstants.X_OK);
+        return { ok: true, errorCode: null };
+    } catch (error) {
+        return { ok: false, errorCode: error?.code || null };
+    }
+}
+
+function resolveOnPath(command, { directOnly = false, excludedRoot = null } = {}) {
     try {
         const dirs = (process.env.PATH || "").split(delimiter);
         const exts = process.platform === "win32"
             ? (process.env.PATHEXT || ".EXE;.CMD;.BAT").split(";").filter(Boolean)
             : [];
-        for (const dir of dirs) {
-            if (!dir) continue;
+        for (const rawDir of dirs) {
+            const dir = rawDir.replace(/^"(.*)"$/, "$1");
+            if (!dir || !isAbsolute(dir)) continue;
             // On Windows only a PATHEXT match is runnable; on POSIX check the bare
             // name, and isExecutableFile confirms the execute bit either way.
             if (exts.length) {
-                for (const ext of exts) if (isExecutableFile(join(dir, command + ext))) return true;
-            } else if (isExecutableFile(join(dir, command))) {
-                return true;
+                for (const ext of exts) {
+                    if (directOnly && ![".EXE", ".COM"].includes(ext.toUpperCase())) continue;
+                    const candidate = join(dir, command + ext);
+                    const probe = probeExecutableFile(candidate);
+                    const appAlias = directOnly && probe.errorCode === "EACCES" &&
+                        isWindowsAppExecutionAlias(candidate, process.env.LOCALAPPDATA);
+                    if (!appAlias && !probe.ok) continue;
+                    const resolved = appAlias ? candidate : realpathSync(candidate);
+                    if (excludedRoot && isInsideRoot(excludedRoot, resolved)) continue;
+                    return resolved;
+                }
+            } else {
+                const candidate = join(dir, command);
+                if (!isExecutableFile(candidate)) continue;
+                const resolved = realpathSync(candidate);
+                if (excludedRoot && isInsideRoot(excludedRoot, resolved)) continue;
+                return resolved;
             }
         }
     } catch {}
-    return false;
+    return null;
 }
 
-// The agent argv a desk opens with. Default: prefer Agency (the internal
-// wrapper around Copilot) when it's installed, so a desk comes up with its
-// MCPs/plugin already configured instead of bare GHCP; otherwise vanilla
-// Copilot. Agency can't take Copilot's --name (it clashes with Agency's own
-// --resume), matching AgentClis. Override with WORKSHOP_DESK_AGENT=copilot to
-// force vanilla, or =agency to insist on the wrapper.
-function deskAgentArgv(deskName) {
+function resolveDeskAgent(workshopDir) {
     const pref = (process.env.WORKSHOP_DESK_AGENT || "").trim().toLowerCase();
-    // An explicit override is authoritative: =agency insists on the wrapper even
-    // when it isn't detected on PATH, and =copilot forces vanilla. Only when the
-    // override is unset do we auto-detect and prefer Agency if it's installed.
-    const useAgency = pref === "agency" ? true
-        : pref === "copilot" ? false
-        : isOnPath("agency");
-    return useAgency ? ["agency", "copilot"] : ["copilot", "--name", deskName];
+    const agencyCommand = resolveOnPath("agency", { excludedRoot: workshopDir });
+    const copilotCommand = resolveOnPath("copilot", { excludedRoot: workshopDir });
+    // Explicit overrides are authoritative and fail closed when unavailable.
+    if (pref === "agency") {
+        return agencyCommand
+            ? { useAgency: true, agencyCommand, copilotCommand }
+            : null;
+    }
+    if (pref === "copilot") {
+        return copilotCommand
+            ? { useAgency: false, agencyCommand, copilotCommand }
+            : null;
+    }
+    if (agencyCommand) return { useAgency: true, agencyCommand, copilotCommand };
+    if (copilotCommand) return { useAgency: false, agencyCommand, copilotCommand };
+    return null;
+}
+
+function resolveSystem32Executable(name) {
+    if (process.platform !== "win32") return null;
+    const root = process.env.SystemRoot || process.env.WINDIR;
+    if (!root || !isAbsolute(root)) return null;
+    try {
+        const candidate = join(root, "System32", name);
+        return isExecutableFile(candidate) ? realpathSync(candidate) : null;
+    } catch {
+        return null;
+    }
+}
+
+function terminateProcessTree(child) {
+    if (!child || child.exitCode !== null) return;
+    if (process.platform === "win32" && child.pid) {
+        const taskkill = resolveSystem32Executable("taskkill.exe");
+        if (!taskkill) return;
+        try {
+            const killer = spawn(taskkill, ["/PID", String(child.pid), "/T", "/F"], {
+                windowsHide: true,
+                stdio: "ignore",
+            });
+            killer.unref();
+        } catch {}
+        return;
+    }
+    try {
+        if (child.pid) process.kill(-child.pid, "SIGKILL");
+        else child.kill("SIGKILL");
+    } catch {
+        try { child.kill("SIGKILL"); } catch {}
+    }
+}
+
+// Capture the underlying Copilot plugin inventory directly. Agency repo mode
+// separately suppresses its own default/config plugins, so discovery does not
+// need a wrapper process that can leave inherited pipes or descendants behind.
+function capturePluginMcpJson(workshopDir, agent) {
+    return new Promise((resolve) => {
+        const command = agent.copilotCommand;
+        if (!command) {
+            resolve(null);
+            return;
+        }
+        const args = ["plugins", "list", "--kind", "mcp", "--scope", "plugin", "--json"];
+        const shim = process.platform === "win32" && /\.(cmd|bat)$/i.test(command);
+        if (shim && !isSafeWindowsCmdShim(command)) {
+            resolve(null);
+            return;
+        }
+        const spawnCommand = shim ? resolveSystem32Executable("cmd.exe") : command;
+        if (!spawnCommand) {
+            resolve(null);
+            return;
+        }
+        const spawnArgs = shim
+            ? ["/d", "/s", "/c",
+                `"${[command, ...args].map(quoteWindowsCmdArgument).join(" ")}"`]
+            : args;
+
+        let settled = false;
+        let stdout = "";
+        const done = (value, child, timer, terminate = false) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            if (terminate) {
+                try { child.stdout.destroy(); } catch {}
+                terminateProcessTree(child);
+            }
+            resolve(value);
+        };
+
+        let child;
+        try {
+            child = spawn(spawnCommand, spawnArgs, {
+                cwd: workshopDir,
+                detached: process.platform !== "win32",
+                windowsHide: true,
+                windowsVerbatimArguments: shim,
+                stdio: ["ignore", "pipe", "ignore"],
+            });
+        } catch {
+            resolve(null);
+            return;
+        }
+
+        const timer = setTimeout(() => done(null, child, timer, true), 30000);
+        child.stdout.setEncoding("utf8");
+        child.stdout.on("data", (chunk) => {
+            if (settled) return;
+            stdout += chunk;
+            if (Buffer.byteLength(stdout, "utf8") > MCP_DISCOVERY_MAX_BYTES) {
+                done(null, child, timer, true);
+                return;
+            }
+            if (parsePluginMcpNames(stdout) !== null) done(stdout, child, timer, true);
+        });
+        child.on("error", () => done(null, child, timer));
+        child.on("close", (code) => done(code === 0 ? stdout : null, child, timer));
+    });
+}
+
+async function discoverPluginMcpNames(workshopDir, agent) {
+    const cacheKey = `${workshopDir}\0${agent.copilotCommand || "missing"}`;
+    const cached = mcpDiscoveryCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.value;
+
+    const output = await capturePluginMcpJson(workshopDir, agent);
+    const names = output === null ? null : parsePluginMcpNames(output);
+    const value = names === null
+        ? { ok: false, names: [] }
+        : { ok: true, names };
+    mcpDiscoveryCache.set(cacheKey, {
+        expiresAt: Date.now() + MCP_DISCOVERY_TTL_MS,
+        value,
+    });
+    return value;
+}
+
+// Preserve the existing Agency-aware launch and layer the repo profile on top.
+// Repo mode suppresses ambient plugin MCPs; connected mode keeps today's tool
+// surface. Plugin discovery fails open, while Agency repo mode still suppresses
+// Agency's own default MCPs.
+async function deskAgentArgv(deskName, workshopDir, profile) {
+    const resolved = resolveDeskAgent(workshopDir);
+    if (!resolved) return null;
+    const { useAgency, agencyCommand, copilotCommand } = resolved;
+    if (useAgency && !agencyCommand) return null;
+    if (!useAgency && !copilotCommand) return null;
+    const discovery = profile === "repo"
+        ? await discoverPluginMcpNames(workshopDir, resolved)
+        : { ok: true, names: [] };
+    return buildDeskAgentArgv({
+        deskName,
+        workshopDir,
+        useAgency,
+        agencyCommand,
+        copilotCommand,
+        profile,
+        pluginMcpNames: discovery.names,
+        discoverySucceeded: discovery.ok,
+    });
 }
 
 // A desk name flows onto a command line, and on the no-wt Windows fallback
@@ -172,7 +366,62 @@ function isInsideRoot(root, target) {
     } catch { return false; }
 }
 
-async function launchDeskConsole(deskPath, deskName, workshopDir) {
+function preferenceStatePath(workshopDir) {
+    return localDelegationPreferencePath(workshopDir, {
+        resolvePath: (p) => {
+            try { return realpathSync(p); } catch { return p; }
+        },
+    });
+}
+
+async function readLocalDelegationPreference(workshopDir) {
+    // Never read preference from the workshop repo — a clone can ship
+    // preference:on. Only user-local state (or explicit env) counts.
+    try {
+        const raw = JSON.parse(await readFile(preferenceStatePath(workshopDir), "utf8"));
+        return parseLocalDelegationState(raw).preference;
+    } catch {
+        return normalizeLocalDelegationPreference(
+            process.env.WORKSHOP_LOCAL_DELEGATION_PREFERENCE, "off");
+    }
+}
+
+async function writeLocalDelegationPreference(workshopDir, preference) {
+    const state = serializeLocalDelegationState({ preference });
+    const target = preferenceStatePath(workshopDir);
+    await mkdir(dirname(target), { recursive: true });
+    // Atomic replace in the user-local dir (temp + rename).
+    const tmp = join(
+        dirname(target),
+        `.pref.${process.pid}.${randomBytes(4).toString("hex")}.tmp`);
+    const body = JSON.stringify(state, null, 2) + "\n";
+    try {
+        await writeFile(tmp, body, { encoding: "utf8", flag: "wx" });
+        try {
+            await rename(tmp, target);
+        } catch {
+            await unlink(target).catch(() => {});
+            await rename(tmp, target);
+        }
+    } catch (err) {
+        await unlink(tmp).catch(() => {});
+        throw err;
+    }
+    return state;
+}
+
+function currentLocalDelegationLaunch(preference) {
+    const availability = resolveLocalDelegationAvailability();
+    return resolveLocalDelegationLaunch({ preference, availability });
+}
+
+async function launchDeskConsole(
+    deskPath,
+    deskName,
+    workshopDir,
+    profile = DEFAULT_DESK_PROFILE,
+    localDelegation = { effective: false },
+) {
     // deskName must be a plain slug so it is safe on every command line and shell
     // below, and the resolved desk must still live inside the workshop root
     // (which defeats a symlinked desk that escapes the repo). deskPath itself is
@@ -183,33 +432,49 @@ async function launchDeskConsole(deskPath, deskName, workshopDir) {
     if (!deskPath) return false;
     if (!isSafeDeskNameForLaunch(deskName)) return false;
     if (!isInsideRoot(workshopDir, deskPath)) return false;
-    const run = [...deskAgentArgv(deskName), "-i", deskOrientPrompt(deskName)];
+    const agent = await deskAgentArgv(deskName, workshopDir, profile);
+    if (!agent) return false;
+    const effective = Boolean(localDelegation?.effective);
+    const run = [...agent, "-i", deskOrientPrompt(deskName, { localDelegationEffective: effective })];
+    const env = buildLocalDelegationLaunchEnv(process.env, { localDelegationEffective: effective });
     if (process.platform === "win32") {
-        // Run the agent through cmd.exe (/k) so PATHEXT is applied: globally
-        // installed CLIs like `copilot`/`agency` are usually .cmd shims that
-        // Windows Terminal or a bare CreateProcess would fail to launch (they
-        // expect a literal executable, not a PATHEXT name). Windows Terminal is a
-        // GUI app, so it still surfaces its own window from the windowless host.
-        // Each element of run is its own argv token — deskName is a slug and the
-        // orientation prompt has no cmd metacharacters — and the desk path is
-        // passed via -d/cwd, so nothing untrusted is reparsed by a shell.
-        if (await trySpawn("wt.exe", ["-d", deskPath, "cmd", "/k", ...run])) return true;
-        // Fallback when wt.exe is absent: a fresh console window via `start`,
-        // still through cmd /k for the same PATHEXT resolution.
-        return await trySpawn("cmd.exe", ["/c", "start", "", "cmd", "/k", ...run], { cwd: deskPath });
+        const wt = resolveOnPath("wt", { directOnly: true, excludedRoot: workshopDir });
+        const cmd = resolveSystem32Executable("cmd.exe");
+        // wt.exe does not reliably forward Node's spawn env into a new tab when
+        // Windows Terminal is already running. Always start through cmd.exe and
+        // set/clear WORKSHOP_LOCAL_DELEGATION in the command string itself.
+        // Args are quoteWindowsCmdArgument'd, so only block expanders that still
+        // fire inside quotes (% and !) — allow parentheses in workshop paths.
+        const cmdSafe = run.every((arg) => isSafeQuotedWindowsCmdArg(arg));
+        if (!cmdSafe || !cmd) return false;
+        const inner = windowsLocalDelegationCmdPrefix(effective)
+            + run.map(quoteWindowsCmdArgument).join(" ");
+        if (wt && await trySpawn(wt, ["-d", deskPath, cmd, "/d", "/s", "/k", inner], { env })) {
+            return true;
+        }
+        // Fallback when wt.exe is absent: a fresh console window via `start`.
+        return await trySpawn(
+            cmd, ["/c", "start", "", cmd, "/d", "/s", "/k", inner], { cwd: deskPath, env });
     }
     if (process.platform === "darwin") {
+        const osascript = "/usr/bin/osascript";
+        if (!isExecutableFile(osascript)) return false;
         // macOS: `open` can't inject a command, so drive Terminal via AppleScript
         // to cd into the desk and exec the agent. Each argv element is POSIX
         // single-quoted so the shell can't reinterpret it, and osascript itself
         // is spawned via argv (no shell).
-        const line = "cd " + shSingleQuote(deskPath) + " && exec " +
+        // Local-delegation env is exported in-line so the Terminal session sees it
+        // without inheriting a polluted parent shell forever.
+        const envPrefix = effective
+            ? "export WORKSHOP_LOCAL_DELEGATION=enabled; "
+            : "unset WORKSHOP_LOCAL_DELEGATION; ";
+        const line = "cd " + shSingleQuote(deskPath) + " && " + envPrefix + "exec " +
             run.map(shSingleQuote).join(" ");
         const script = 'tell application "Terminal"\n' +
             "  activate\n" +
             "  do script " + osaStringLiteral(line) + "\n" +
             "end tell";
-        return await trySpawn("osascript", ["-e", script]);
+        return await trySpawn(osascript, ["-e", script], { env });
     }
     // Linux/other: best-effort across common terminal emulators. Each is spawned
     // via argv (no shell) with the agent command after the emulator's exec flag,
@@ -221,7 +486,8 @@ async function launchDeskConsole(deskPath, deskName, workshopDir) {
         ["xterm", ["-e", ...run]],
     ];
     for (const [term, args] of linuxTerms) {
-        if (await trySpawn(term, args, { cwd: deskPath })) return true;
+        const executable = resolveOnPath(term, { excludedRoot: workshopDir });
+        if (executable && await trySpawn(executable, args, { cwd: deskPath, env })) return true;
     }
     return false;
 }
@@ -537,7 +803,42 @@ function avgScore(signals) {
     return { confidence: avg("confidence"), accuracy: avg("accuracy"), completeness: avg("completeness"), intent: avg("intentScore") };
 }
 
-function renderSummaryBar(activeSignals) {
+function renderLocalDelegationControl(localDelegation) {
+    const pref = localDelegation?.preference || "off";
+    const available = Boolean(localDelegation?.availability?.available);
+    const effective = Boolean(localDelegation?.effective);
+    const reason = localDelegation?.availability?.reason || "Local Delegation unavailable";
+    const routeId = localDelegation?.availability?.routeId || null;
+    const next = pref === "on" ? "off" : "on";
+    const label = effective ? "On" : (pref === "on" ? "On*" : "Off");
+    const color = effective ? "#86efac" : (pref === "on" ? "#fbbf24" : "#94a3b8");
+    const border = effective ? "#166534" : (pref === "on" ? "#854d0e" : "#334155");
+    const title = available
+        ? (effective
+            ? `Local Delegation effective${routeId ? ` · route ${routeId}` : ""}`
+            : "Local Delegation available but currently off")
+        : reason;
+    const note = effective && routeId
+        ? `<span style="font-size:10px;color:#86efac;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(title)}">effective · ${esc(truncate(routeId, 28))}</span>`
+        : !available
+        ? `<span style="font-size:10px;color:#64748b;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(reason)}">${esc(truncate(reason, 48))}</span>`
+        : (pref === "on" && !effective
+            ? `<span style="font-size:10px;color:#fbbf24;">requested, unavailable</span>`
+            : "");
+    return `
+    <div style="display:flex;align-items:center;gap:6px;" title="${esc(title)}">
+        <span style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;">Local</span>
+        <button data-act="local-delegation" data-preference="${esc(next)}"
+            aria-label="Local Delegation ${esc(label)}${effective && routeId ? ` route ${esc(routeId)}` : ""}"
+            aria-pressed="${pref === "on" ? "true" : "false"}"
+            style="background:#020617;border:1px solid ${border};color:${color};padding:2px 8px;border-radius:999px;
+                   font-size:11px;cursor:pointer;font-weight:600;min-width:42px;"
+            title="${esc(title)}">${esc(label)}</button>
+        ${note}
+    </div>`;
+}
+
+function renderSummaryBar(activeSignals, localDelegation) {
     const escalations = activeSignals.filter(s => s.signalType === "escalation").length;
     const withSignals = activeSignals.filter(s => s.signalType !== "none").length;
     const awaiting = activeSignals.filter(s => s.signalType === "none").length;
@@ -572,13 +873,14 @@ function renderSummaryBar(activeSignals) {
 
     return `
     <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;
-                background:#0f172a;border:1px solid #1e293b;border-radius:8px;margin-bottom:14px;">
-        <div style="display:flex;align-items:center;gap:12px;">
+                background:#0f172a;border:1px solid #1e293b;border-radius:8px;margin-bottom:14px;gap:12px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
             <span style="font-size:13px;color:#cbd5e1;"><b style="color:#f1f5f9;">${activeSignals.length}</b> desk${activeSignals.length !== 1 ? "s" : ""}</span>
             <span style="font-size:11px;color:#475569;">${withSignals} reporting · ${awaiting} awaiting</span>
             ${tokenBadge}
             ${calibrationBadge}
             ${escBadge}
+            ${renderLocalDelegationControl(localDelegation)}
         </div>
         ${avgBlock}
     </div>`;
@@ -612,11 +914,20 @@ function renderSignalCard(sig) {
     const openBtnStyle = isEscalation
         ? "background:#7f1d1d;border:1px solid #dc2626;color:#fca5a5;padding:2px 10px;border-radius:4px;font-size:11px;cursor:pointer;font-weight:600;transition:all .15s;"
         : "background:none;border:1px solid #1e3a5f;color:#7dd3fc;padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer;transition:all .15s;";
-    const openBtn = `<button data-act="open" data-desk="${esc(sig.deskName)}"
+    const openBtn = `<button data-act="open" data-profile="${esc(DEFAULT_DESK_PROFILE)}" data-desk="${esc(sig.deskName)}"
+        aria-label="Open ${esc(sig.deskName)} desk with ${esc(DEFAULT_DESK_PROFILE)} profile"
         style="${openBtnStyle}"
         onmouseover="this.style.background='#1e3a5f'"
         onmouseout="this.style.background='${isEscalation ? '#7f1d1d' : 'transparent'}'"
-        title="Open this desk as a Copilot CLI session in its folder">open</button>`;
+        title="Open this desk with the ${esc(DEFAULT_DESK_PROFILE)} tool profile">open</button>`;
+    const connectedBtn = DEFAULT_DESK_PROFILE === "connected" ? "" : `
+        <button data-act="open" data-profile="connected" data-desk="${esc(sig.deskName)}"
+            aria-label="Open ${esc(sig.deskName)} desk with connected profile"
+            style="background:none;border:1px solid #262626;color:#94a3b8;padding:2px 7px;border-radius:4px;
+                   font-size:10px;cursor:pointer;transition:all .15s;"
+            onmouseover="this.style.borderColor='#475569';this.style.color='#cbd5e1'"
+            onmouseout="this.style.borderColor='#262626';this.style.color='#94a3b8'"
+            title="Open with every configured MCP and tool">connected</button>`;
 
     let escalationBlock = "";
     if (isEscalation && sig.escalationReason) {
@@ -719,6 +1030,7 @@ function renderSignalCard(sig) {
                 ${(sig.tokensIn || sig.tokensOut) ? `<span style="font-size:10px;color:#334155;background:#0f172a;border:1px solid #1e293b;padding:1px 6px;border-radius:3px;" title="in: ${sig.tokensIn} · out: ${sig.tokensOut}${sig.model ? ' · ' + esc(sig.model) : ''}">🪙 ${formatTokens(sig.tokensIn + sig.tokensOut)}</span>` : ""}
                 <span style="font-size:11px;color:#475569;">${timeSince(sig.emittedAt)}${sig.signalCount ? ` · ${sig.signalCount}` : ""}</span>
                 ${openBtn}
+                ${connectedBtn}
                 ${stashBtn}
             </div>
         </div>
@@ -744,8 +1056,9 @@ function renderStashedCard(entry) {
     </div>`;
 }
 
-function renderDashboard(signals, stashed, capabilityToken) {
+function renderDashboard(signals, stashed, capabilityToken, localDelegation) {
     const activeSignals = sortSignals(signals.filter(s => !stashed.some(e => e.name === s.deskName)));
+    const localDelegationState = localDelegation || currentLocalDelegationLaunch("off");
 
     const cards = activeSignals.length > 0
         ? activeSignals.map(renderSignalCard).join("")
@@ -774,7 +1087,9 @@ function renderDashboard(signals, stashed, capabilityToken) {
             </div>
            </div>`;
 
-    const summaryBar = activeSignals.length > 0 ? renderSummaryBar(activeSignals) : "";
+    // Always show the Local Delegation control so operators can see availability
+    // even before the first desk signal arrives.
+    const summaryBar = renderSummaryBar(activeSignals, localDelegationState);
 
     const stashedSection = stashed.length > 0 ? `
         <div style="margin-top:20px;padding-top:12px;border-top:1px solid #1a1a1a;">
@@ -850,35 +1165,66 @@ function renderDashboard(signals, stashed, capabilityToken) {
             document.body.appendChild(toast);
             setTimeout(() => toast.remove(), 4000);
         }
-        async function openDesk(name) {
-            const res = await fetch('/api/open/' + encodeURIComponent(name), POST_OPTS);
+        async function openDesk(name, profile) {
+            const selectedProfile = profile || ${JSON.stringify(DEFAULT_DESK_PROFILE)};
+            const res = await fetch('/api/open/' + encodeURIComponent(name) +
+                '?profile=' + encodeURIComponent(selectedProfile), POST_OPTS);
             const data = await res.json();
             if (data.ok) {
                 const path = data.deskPath || name;
+                const notice = data.localDelegationNotice || {};
+                const localTitle = notice.titleSuffix || '';
+                const localDetail = notice.detail || '';
                 if (data.launched) {
                     // A successful open shouldn't hijack the user's clipboard.
-                    showToast('opening ' + name + ' desk…', path);
+                    // Surface LD state in the toast — operators cannot rely on -i alone.
+                    showToast('opening ' + name + ' desk (' + selectedProfile + localTitle + ')…',
+                        localDetail || path);
                 } else {
                     // No terminal launched from here, so copy the path as the
                     // fallback handle, but only claim the copy when it actually
                     // succeeded. The path shows in the toast either way.
                     let copied = false;
                     try { await navigator.clipboard.writeText(path); copied = true; } catch {}
-                    showToast(copied ? (name + ' · path copied') : (name + ' · copy this path'), path);
+                    const copyTitle = copied ? (name + ' · path copied') : (name + ' · copy this path');
+                    showToast(copyTitle + localTitle, localDetail || path);
                 }
             } else {
                 showToast(name + ' · not found', '');
             }
         }
+        async function setLocalDelegation(preference) {
+            const res = await fetch('/api/local-delegation?preference=' +
+                encodeURIComponent(preference || 'off'), POST_OPTS);
+            const data = await res.json();
+            if (data.ok) {
+                const ld = data.localDelegation || {};
+                const routeId = ld.availability && ld.availability.routeId;
+                const label = ld.effective
+                    ? ('Local Delegation effective' + (routeId ? (' · route ' + routeId) : ''))
+                    : (ld.preference === 'on'
+                        ? 'Local Delegation requested (unavailable)'
+                        : 'Local Delegation off');
+                showToast(label, ld.availability?.reason || '');
+                refresh();
+            } else {
+                showToast('Local Delegation · not updated', data.error || '');
+            }
+        }
         document.addEventListener('click', (e) => {
             const btn = e.target.closest('button[data-act]');
             if (!btn) return;
+            const act = btn.getAttribute('data-act');
+            if (act === 'local-delegation') {
+                setLocalDelegation(btn.getAttribute('data-preference') || 'off');
+                return;
+            }
             const name = btn.getAttribute('data-desk');
             if (!name) return;
-            const act = btn.getAttribute('data-act');
+            const profile = btn.getAttribute('data-profile');
             if (act === 'stash') stashDesk(name);
             else if (act === 'restore') restoreDesk(name);
-            else if (act === 'open') openDesk(name);
+            else if (act === 'open') openDesk(name, profile);
         });
         async function refresh() {
             try {
@@ -894,16 +1240,30 @@ function renderDashboard(signals, stashed, capabilityToken) {
                     const active = document.activeElement;
                     let focusKey = null;
                     if (active && active.matches && active.matches('button[data-act]')) {
-                        focusKey = active.getAttribute('data-act') + '|' + active.getAttribute('data-desk');
+                        focusKey = JSON.stringify([
+                            active.getAttribute('data-act'),
+                            active.getAttribute('data-desk'),
+                            active.getAttribute('data-profile') || '',
+                            active.getAttribute('data-preference') || '',
+                        ]);
                     }
                     content.innerHTML = newContent.innerHTML;
                     if (focusKey) {
-                        const bar = focusKey.indexOf('|');
-                        const act = focusKey.slice(0, bar);
-                        const desk = focusKey.slice(bar + 1);
-                        const escDesk = (window.CSS && CSS.escape) ? CSS.escape(desk) : desk;
-                        const target = content.querySelector('button[data-act="' + act + '"][data-desk="' + escDesk + '"]');
+                        const [act, desk, profile, preference] = JSON.parse(focusKey);
+                        let target = null;
+                        if (act === 'local-delegation') {
+                            target = content.querySelector('button[data-act="local-delegation"]');
+                        } else {
+                            const escDesk = (window.CSS && CSS.escape) ? CSS.escape(desk) : desk;
+                            const profileSelector = profile
+                                ? '[data-profile="' + profile + '"]'
+                                : ':not([data-profile])';
+                            target = content.querySelector(
+                                'button[data-act="' + act + '"][data-desk="' + escDesk + '"]' +
+                                profileSelector);
+                        }
                         if (target) target.focus();
+                        void preference;
                     }
                 }
             } catch {}
@@ -969,21 +1329,53 @@ async function startServer(instanceId, workshopDir) {
             res.end(JSON.stringify({ ok: true }));
             return;
         }
+        if (req.method === "POST" && url.pathname === "/api/local-delegation") {
+            const preferenceInput = url.searchParams.get("preference") || "off";
+            if (!["off", "on"].includes(String(preferenceInput).toLowerCase())) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ ok: false, error: "Invalid local delegation preference" }));
+                return;
+            }
+            const preference = normalizeLocalDelegationPreference(preferenceInput, "off");
+            await writeLocalDelegationPreference(workshopDir, preference);
+            const localDelegation = currentLocalDelegationLaunch(preference);
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ ok: true, localDelegation }));
+            return;
+        }
         if (req.method === "POST" && url.pathname.startsWith("/api/open/")) {
             const deskName = decodeURIComponent(url.pathname.split("/api/open/")[1]);
+            const profileInput = url.searchParams.get("profile") || DEFAULT_DESK_PROFILE;
             if (!isValidDeskName(deskName)) {
                 res.writeHead(400, { "Content-Type": "application/json" });
                 res.end(JSON.stringify({ ok: false, error: "Invalid desk name" }));
                 return;
             }
+            if (!isDeskProfile(profileInput)) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ ok: false, error: "Invalid desk profile" }));
+                return;
+            }
+            const profile = normalizeDeskProfile(profileInput);
+            const preference = await readLocalDelegationPreference(workshopDir);
+            const localDelegation = currentLocalDelegationLaunch(preference);
             for (const subdir of ["desks", "classroom"]) {
                 const deskPath = join(workshopDir, subdir, deskName);
                 try {
                     const s = await stat(deskPath);
                     if (s.isDirectory()) {
-                        const launched = await launchDeskConsole(deskPath, deskName, workshopDir);
+                        const launched = await launchDeskConsole(
+                            deskPath, deskName, workshopDir, profile, localDelegation);
                         res.writeHead(200, { "Content-Type": "application/json" });
-                        res.end(JSON.stringify({ ok: true, deskName, deskPath, launched }));
+                        res.end(JSON.stringify({
+                            ok: true,
+                            deskName,
+                            deskPath,
+                            launched,
+                            profile,
+                            localDelegation,
+                            localDelegationNotice: formatLocalDelegationOpenNotice(localDelegation),
+                        }));
                         return;
                     }
                 } catch {}
@@ -995,8 +1387,10 @@ async function startServer(instanceId, workshopDir) {
 
         const signals = await scanSignals(workshopDir);
         const stashed = await readStash(workshopDir);
+        const preference = await readLocalDelegationPreference(workshopDir);
+        const localDelegation = currentLocalDelegationLaunch(preference);
         res.setHeader("Content-Type", "text/html; charset=utf-8");
-        res.end(renderDashboard(signals, stashed, capabilityToken));
+        res.end(renderDashboard(signals, stashed, capabilityToken, localDelegation));
         } catch (err) {
             // Top-level boundary: never leave a request hanging or let a
             // rejection become an unhandled crash — e.g. malformed %-encoding
@@ -1109,23 +1503,56 @@ const session = await joinSession({
                 },
                 {
                     name: "open_desk",
-                    description: "Open a desk as an in-place Copilot CLI session: launches a terminal in the desk's folder (inside the workshop repo) running copilot, oriented to read the desk journal and continue. This is the Model A 'sit down at the desk' — no new worktree, no session spun off elsewhere. Returns the desk path and whether a terminal was launched.",
+                    description: "Open a desk as an in-place Copilot CLI session. Repo profile suppresses ambient plugin MCPs; connected keeps every configured tool. Local Delegation is orthogonal and fail-closed: when available and preferred on, the frontier desk may use sealed local-agent-delegation for bounded read/evidence work. Returns the desk path, profile, localDelegation state, and whether a terminal was launched.",
                     inputSchema: {
                         type: "object",
-                        properties: { deskName: { type: "string", description: "Name of the desk to open" } },
+                        properties: {
+                            deskName: { type: "string", description: "Name of the desk to open" },
+                            profile: {
+                                type: "string",
+                                enum: ["repo", "connected"],
+                                description: `Tool profile. Defaults to ${DEFAULT_DESK_PROFILE}.`,
+                            },
+                            localDelegation: {
+                                type: "string",
+                                enum: ["off", "on"],
+                                description: "Optional Local Delegation preference for this launch. Defaults to the workshop Cairn toggle (.local-delegation.json).",
+                            },
+                        },
                         required: ["deskName"],
                     },
                     handler: async (ctx) => {
                         const entry = servers.get(ctx.instanceId);
                         if (!entry) return { error: "Dashboard not open" };
                         if (!isValidDeskName(ctx.input.deskName)) return { error: "Invalid desk name" };
+                        const profileInput = ctx.input.profile || DEFAULT_DESK_PROFILE;
+                        if (!isDeskProfile(profileInput)) return { error: "Invalid desk profile" };
+                        const profile = normalizeDeskProfile(profileInput);
+                        const preferenceInput = ctx.input.localDelegation
+                            ?? await readLocalDelegationPreference(entry.workshopDir);
+                        const preference = normalizeLocalDelegationPreference(preferenceInput, "off");
+                        const localDelegation = currentLocalDelegationLaunch(preference);
                         for (const subdir of ["desks", "classroom"]) {
                             const deskPath = join(entry.workshopDir, subdir, ctx.input.deskName);
                             try {
                                 const s = await stat(deskPath);
                                 if (s.isDirectory()) {
-                                    const launched = await launchDeskConsole(deskPath, ctx.input.deskName, entry.workshopDir);
-                                    return { ok: true, deskName: ctx.input.deskName, deskPath, launched, workshopDir: entry.workshopDir };
+                                    const launched = await launchDeskConsole(
+                                        deskPath,
+                                        ctx.input.deskName,
+                                        entry.workshopDir,
+                                        profile,
+                                        localDelegation);
+                                    return {
+                                        ok: true,
+                                        deskName: ctx.input.deskName,
+                                        deskPath,
+                                        launched,
+                                        workshopDir: entry.workshopDir,
+                                        profile,
+                                        localDelegation,
+                                        localDelegationNotice: formatLocalDelegationOpenNotice(localDelegation),
+                                    };
                                 }
                             } catch {}
                         }

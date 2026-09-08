@@ -30,7 +30,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services
     .AddMcpServer()
-    .WithHttpTransport()             // stateless by default since SDK 2.0
+    // Since 2.x, Stateless defaults to true: each request is independent,
+    // no Mcp-Session-Id tracking, no SSE session endpoints — ready for
+    // horizontal scaling without sticky sessions.
+    .WithHttpTransport()
     .WithToolsFromAssembly();
 
 var app = builder.Build();
@@ -50,34 +53,21 @@ public static class EchoTool
 
 ## Stateless vs. stateful — the most important decision
 
-> **Changed in SDK 2.0:** `Stateless` now defaults to **`true`** (it was `false` in 1.x). Stateless servers no longer create transport sessions and no longer expose the standalone SSE GET / DELETE endpoints. If you copy 1.x-era samples that silently relied on stateful behaviour, elicitation/sampling will break until you set `Stateless = false` explicitly.
+> **v2 breaking change:** `HttpServerTransportOptions.Stateless` now defaults to **`true`** (it defaulted to `false` on 1.x). A server upgraded to 2.x without touching options stops creating sessions and stops exposing SSE endpoints. Set `Stateless = false` explicitly to restore the legacy behavior.
 
 | Mode | `options.Stateless` | Behaviour | Use when |
 |---|---|---|---|
-| **Stateless** | `true` (default since 2.0) | No `Mcp-Session-Id`. Each POST is independent. | Horizontal scaling, simple tool servers, no server-initiated traffic. |
-| **Stateful** | `false` (opt-in, emits `MCP9006` warnings on new protocol versions) | Server assigns and tracks `Mcp-Session-Id`. Long-lived session. | You need elicitation, sampling, roots, log notifications, or anything that pushes from server to client. Requires session affinity at the load balancer. |
+| **Stateless** | `true` (default since 2.x) | No `Mcp-Session-Id`. Each POST is independent. Serves the current (2026-07-28) revision. | Horizontal scaling, simple tool servers, current-protocol clients. |
+| **Stateful** | `false` | Server assigns and tracks `Mcp-Session-Id`. Long-lived session. **Down-level compatibility mode:** the server refuses the 2026-07-28 revision so dual-path clients fall back to an initialize-capable revision (2025-11-25 or earlier). | Legacy `ElicitAsync`/sampling/roots paths, pushed log notifications, clients that haven't adopted 2026-07-28. Requires session affinity at the load balancer. |
 
-**Rule:** if the user wants any of `ElicitAsync`, `SampleAsync`, `RequestRootsAsync`, or to push log/notification messages, set `Stateless = false` explicitly. On the default stateless mode those calls fail at runtime with no transport to deliver them on. (Note that sampling and roots are themselves deprecated in spec 2026-07-28 — see their reference pages.)
-
-```csharp
-.WithHttpTransport(options =>
-{
-#pragma warning disable MCP9006 // stateful HTTP is a deliberate choice here
-    options.Stateless = false;   // required for elicitation & other server-to-client features
-#pragma warning restore MCP9006
-})
-```
-
-## Protocol negotiation (discovery-first)
-
-Spec 2026-07-28 removes the `initialize` handshake (SEP-2575): clients send a `server/discover` probe first, and fall back to the legacy `initialize` flow when talking to older servers. The SDK handles both directions automatically — a 2.0 server answers old-style clients, and a 2.0 client connects to old servers. Nothing to configure; just don't bake `initialize`-only assumptions into proxies or test fixtures.
+**Rule:** on the current (2026-07-28) protocol there are no HTTP sessions — "ask the user something mid-tool" uses the multi-round-trip pattern (throw `InputRequiredException`, handle the retried call; see [`elicitation.md`](./elicitation.md)), which works in both session modes and both revisions. Set `Stateless = false` only for the legacy paths — `ElicitAsync`, the deprecated `SampleAsync`/`RequestRootsAsync`, or pushed log/notification messages — and be aware it pins HTTP clients to a down-level, initialize-capable revision. On the stateless default those legacy calls fail at runtime with no channel to deliver them on.
 
 ## Endpoint shape
 
 `MapMcp(pattern = "")` creates a route group at `pattern` and maps:
 - **POST** — accepts JSON-RPC requests/responses/notifications. Returns either a JSON response or an SSE stream depending on `Accept` header and whether multiple messages need to flow back.
-- **GET** — used by stateful sessions for the server-to-client SSE channel. **Not mapped in stateless mode** (the default since 2.0).
-- **DELETE** — terminates a stateful session. Also stateful-only.
+- **GET** — used by stateful sessions for the server-to-client SSE channel.
+- **DELETE** — terminates a stateful session.
 
 Default pattern is the root (`/`). To put MCP under `/mcp/v1`:
 
@@ -86,6 +76,11 @@ app.MapMcp("/mcp/v1");
 ```
 
 Match this on the client side (`Endpoint = new Uri("https://host/mcp/v1")`).
+
+## Version negotiation and routing (2026-07-28)
+
+- **Discovery-first:** v2 clients probe the `server/discover` method to learn capabilities instead of the legacy `initialize` handshake. The SDK answers both and falls back automatically for down-level peers (2025-11-25 and earlier) — you don't write any code for this, but don't be surprised to see `server/discover` in traffic captures.
+- **Routable headers:** every Streamable HTTP POST carries an `Mcp-Method` header (e.g. `tools/call`), and named invocations (`tools/call`, `prompts/get`, `resources/read`) additionally carry `Mcp-Name` (e.g. the tool name), so gateways and rate limiters can route/throttle per tool without parsing JSON bodies. Don't require `Mcp-Name` globally at the gateway — discovery and list requests legitimately omit it.
 
 ## Per-session configuration (HttpContext access)
 
@@ -125,7 +120,7 @@ app.UseAuthorization();
 app.MapMcp().RequireAuthorization();   // protect the endpoint
 ```
 
-For OAuth flows where the *MCP server* is the resource server, follow the [MCP authorization spec](https://modelcontextprotocol.io/specification/latest/basic/authorization). The [`ProtectedMcpServer` sample](https://github.com/modelcontextprotocol/csharp-sdk/tree/main/samples/ProtectedMcpServer) shows a working setup with discovery endpoints. Since SDK 2.0 the OAuth stack is stricter: issuer mismatches are rejected (RFC 9207 / RFC 8414), the authorization server must advertise PKCE `S256`, and 2.0 adds Enterprise Managed Authorization (SEP-990, ID-JAG flow) for org-controlled access.
+For OAuth flows where the *MCP server* is the resource server, follow the [MCP authorization spec](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization). The [`ProtectedMcpServer` sample](https://github.com/modelcontextprotocol/csharp-sdk/tree/main/samples/ProtectedMcpServer) shows a working setup with discovery endpoints.
 
 For machine-to-machine, an API key middleware is fine:
 
@@ -187,12 +182,16 @@ builder.Services
     .AddMcpServer()
     .WithHttpTransport(options =>
     {
+#pragma warning disable MCP9004 // EnableLegacySse is [Obsolete] (backpressure)
+#pragma warning disable MCP9006 // stateful-only option, down-level connections only
         options.EnableLegacySse = true;
-#pragma warning disable MCP9006
-        options.Stateless = false; // SSE requires stateful mode (no longer the default)
+        options.Stateless = false; // SSE requires stateful mode
 #pragma warning restore MCP9006
+#pragma warning restore MCP9004
     })
     .WithToolsFromAssembly();
 ```
+
+Both suppressions are needed and they are *not* interchangeable: `MCP9004` covers `EnableLegacySse`, `MCP9006` covers the stateful-only `Stateless = false`.
 
 Only do this if the user has a documented client that hasn't migrated. New deployments should not enable it.

@@ -60,9 +60,7 @@ public class WeatherTools
 
 For STDIO servers, remember: console logging **must** go to stderr (`LogToStandardErrorThreshold = LogLevel.Trace`) — otherwise it corrupts the JSON-RPC stream. See [`transport-stdio.md`](./transport-stdio.md).
 
-> **Deprecated in spec 2026-07-28:** MCP-channel logging (the `notifications/message` mechanism below) is on the deprecation list, and SDK 2.0 flags its APIs with `MCP9005` warnings. Plain `ILogger` to stderr/your log pipeline is unaffected and remains the right default. Only use MCP-channel logging for down-level hosts that surface it, and suppress the warning deliberately.
-
-To send a log specifically over the MCP channel (so the *host UI* sees it, not just your container logs):
+> **MCP-channel logging is deprecated in the 2026-07-28 spec** — SDK 2.x marks it `[Obsolete]` (`MCP9005`), along with the `logging` capability and the client's `setLevel` method (replaced by a `_meta` log level on requests). `ILogger`-based logging above is unaffected and remains the right default. Only use the MCP-channel notification below when supporting down-level clients that expect it:
 
 ```csharp
 await server.SendNotificationAsync(
@@ -140,7 +138,7 @@ options.Capabilities.NotificationHandlers[NotificationMethods.CancelledNotificat
 
 ## Batching list-changed notifications
 
-If you add/remove many primitives at once (plugin load, tenant switch), don't fire one `list_changed` notification per item. SDK 2.0 added `McpServerPrimitiveCollection<T>.DeferChangedEvents()` — wrap the mutations so a single coalesced notification goes out when the scope disposes:
+If you add or remove many primitives at once (plugin load, tenant switch), don't fire one `list_changed` notification per item. SDK 2.0 added `McpServerPrimitiveCollection<T>.DeferChangedEvents()` — wrap the mutations so a single coalesced notification goes out when the scope disposes:
 
 ```csharp
 using (options.ToolCollection.DeferChangedEvents())
@@ -206,9 +204,8 @@ builder.Services.AddMcpServer(options =>
         Tools = new(),       // advertise tools
         Prompts = new(),     // advertise prompts
         Resources = null,    // do NOT advertise resources, even if some are registered
-        Logging = new()
     };
 });
 ```
 
-By default, the SDK advertises everything you've registered — usually the right behaviour.
+By default, the SDK advertises everything you've registered — usually the right behaviour. Note that `Logging` is `[Obsolete]` in 2.x (`MCP9005`) — don't advertise it on new servers. Roots and sampling are *client* capabilities: a server never advertises them, it only checks `server.ClientCapabilities?.Roots` / `.Sampling` before using the (equally deprecated) client-side features.

@@ -1,6 +1,6 @@
 # Roots
 
-> **Deprecated in spec 2026-07-28.** The roots APIs still work — including against peers on older protocol versions — but SDK 2.0 flags every use with an `MCP9005` warning. Keep them in existing servers (suppress the warning deliberately); for new servers, prefer passing paths explicitly as tool arguments or resources.
+> **Deprecated in the 2026-07-28 spec.** SDK 2.x marks the roots APIs `[Obsolete]` (build warning `MCP9005`). They stay wire-compatible with down-level clients during the transition, but for new designs prefer having the client pass in-scope paths as tool arguments, or ask via elicitation / the multi-round-trip `input_required` pattern. Keep this page for maintaining existing 1.x-era servers.
 
 Roots are filesystem (or URI) locations the **client** advertises to the server, scoping what the server is allowed to look at. Think "open workspace folders" in an IDE — the user has implicitly approved the server reading from these places. The server pulls the list when it needs it.
 
@@ -12,7 +12,7 @@ Roots are filesystem (or URI) locations the **client** advertises to the server,
 
 ## Prerequisite
 
-Same as sampling/elicitation: server-to-client request → needs STDIO or stateful HTTP (`Stateless = false`, explicit since SDK 2.0). Plus the client must advertise the `roots` capability.
+Same as sampling/elicitation: server-to-client request → needs STDIO or stateful HTTP. Plus the client must advertise the `roots` capability.
 
 ## Reading roots from a tool
 

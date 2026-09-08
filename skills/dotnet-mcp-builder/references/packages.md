@@ -9,44 +9,37 @@ All packages live under the [`ModelContextProtocol` NuGet profile](https://www.n
 | **`ModelContextProtocol`** | Default for STDIO servers and most projects | `Core` + `Microsoft.Extensions.Hosting` integration, attribute discovery (`AddMcpServer`, `WithToolsFromAssembly`, etc.) |
 | **`ModelContextProtocol.AspNetCore`** | HTTP (Streamable) servers hosted in ASP.NET Core | The above + `WithHttpTransport` and `MapMcp` |
 | **`ModelContextProtocol.Core`** | Pure clients, custom hosts, low-level scenarios where you don't want the `Microsoft.Extensions.*` dependencies | Just the protocol + transports + low-level `McpServer.Create` / `McpClient.CreateAsync` |
-| **`ModelContextProtocol.Extensions.Apps`** | Tools that render an interactive UI in the host (MCP Apps) | `[McpAppUi]` attribute, `WithMcpApps()`, typed `_meta.ui` types |
-| **`ModelContextProtocol.Extensions.Tasks`** | Long-running tool invocations with status polling (MCP Tasks, SEP-2663) | `WithTasks(...)`, `IMcpTaskStore` / `InMemoryMcpTaskStore`, `TasksProtocol` |
+| **`ModelContextProtocol.Extensions.Tasks`** (2.x) | Long-running task support (the MCP Tasks extension) | Production replacement for the experimental 1.4.x Tasks APIs; register via `WithTasks(...)` — see [`tasks.md`](./tasks.md) |
+| **`ModelContextProtocol.Extensions.Apps`** (2.x) | MCP Apps — interactive UI rendered in the host | Typed `[McpAppUi]` attribute + `.WithMcpApps()` registration replacing the hand-rolled `_meta` wiring of 1.x; you still serve the UI as a `ui://` resource, and the APIs are experimental (`MCPEXP003`) — see [`mcp-apps.md`](./mcp-apps.md) |
 
 **Rule of thumb:**
 - New STDIO server → `ModelContextProtocol` + `Microsoft.Extensions.Hosting`.
 - New HTTP server → `ModelContextProtocol.AspNetCore` only (it transitively pulls in everything you need).
 - Pure client app → `ModelContextProtocol.Core` (or `ModelContextProtocol` if you also want hosting/DI for the client).
-- Add the `Extensions.*` packages only when you actually use MCP Apps or Tasks — they version in lockstep with the core packages.
 
 ## Versions
 
-The stable line is **2.x** — `2.0.0` shipped 2026-07-28 alongside the MCP **2026-07-28 spec** it implements. The last 1.x release was `1.4.1`. The `0.x` line was preview and has breaking differences — if you find docs or blog posts referencing `0.4`/`0.6`, treat them as ancient; treat 1.x-era material as pre-2.0 (several defaults flipped, see below).
+As of mid-2026, the stable line is **2.x** (`2.0.0` is current at time of writing), aligned with the MCP 2026-07-28 spec. The `0.x` line was preview and has breaking differences — if you find docs or blog posts referencing `0.4`/`0.6`, treat them as out of date. The `1.x` line still compiles and interoperates, but predates the v2 changes (stateless-by-default HTTP, discovery-first negotiation, roots/sampling/logging deprecations, the Tasks/Apps extension packages) — prefer 2.x for new projects.
 
-The SDK negotiates down automatically: a 2.0 server/client interoperates with peers on 2025-11-25 and earlier protocol versions.
+**Upgrading 1.x → 2.0 (highlights, not exhaustive):** stable v1.x APIs keep working; the deprecated capabilities (roots, sampling, logging) are now `[Obsolete]` with `MCP9005` warnings, experimental APIs moved (the 1.4.x Tasks surface → `ModelContextProtocol.Extensions.Tasks`), and several behaviors flipped (`HttpServerTransportOptions.Stateless` now defaults to `true`; non-object tool results emit raw `structuredContent` values; `Tool.inputSchema` is required on deserialization). OAuth also changed at runtime — `AuthorizationRedirectDelegate` → `ClientOAuthOptions.AuthorizationCallbackHandler`, RFC 9207 issuer validation, mandatory PKCE S256 in metadata, `application_type` in dynamic registration — and SSE transport failures now propagate the underlying `HttpRequestException`/`TimeoutException`. Before upgrading, read the full [v2.0.0 release notes](https://github.com/modelcontextprotocol/csharp-sdk/releases/tag/v2.0.0).
+
+**The compiler tells you most of it.** 2.0 stages its deprecations behind distinct diagnostic codes — look the code up rather than blanket-suppressing:
+
+| Code | Triggered by | What to do |
+|---|---|---|
+| `MCP9004` | `EnableLegacySse` (marked `[Obsolete]` for backpressure reasons) | Only keep it for a known SSE-only client; prefer Streamable HTTP |
+| `MCP9005` | Roots, sampling, or MCP-channel logging APIs — deprecated by spec 2026-07-28 | Still works against down-level peers; suppress while migrating, avoid in new designs |
+| `MCP9006` | Stateful-only options such as `Stateless = false` | Applies only to down-level initialize-handshake connections — drop it unless you need those legacy paths |
+| `MCP9007` | `AuthorizationRedirectDelegate` / `ClientOAuthOptions.AuthorizationRedirectDelegate` | Migrate to `AuthorizationCallbackHandler`, which also returns the issuer for RFC 9207 validation |
+| `MCPEXP003` | Experimental MCP Apps APIs in `Extensions.Apps` | Expected — suppress deliberately and pin the package version |
+
+`MCP9004` and `MCP9006` are easy to confuse: enabling legacy SSE needs *both* suppressed, because it sets an obsolete option **and** opts back into stateful mode.
 
 To check the latest:
 
 ```bash
 dotnet search ModelContextProtocol --prerelease
 ```
-
-## What changed in 2.0 (migration from 1.x)
-
-The compiler tells you most of it — 2.0 stages deprecations behind warning codes:
-
-| Warning | Meaning | What to do |
-|---|---|---|
-| `MCP9005` | Roots, sampling, or MCP-channel logging API — deprecated by spec 2026-07-28 | Still works against down-level peers; suppress while planning migration, avoid in new designs |
-| `MCP9006` | `Stateless = false` (stateful HTTP) on new protocol versions | Keep only if you need server-to-client features; otherwise delete the line — stateless is the default now |
-| `MCP9007` | `AuthorizationRedirectDelegate` in OAuth options | Migrate to `ClientOAuthOptions.AuthorizationCallbackHandler` (returns code, state and issuer for RFC 9207 validation) |
-
-Behavioral breaks to check when upgrading:
-- **HTTP is stateless by default.** `HttpServerTransportOptions.Stateless` flipped from `false` to `true`. Stateless servers no longer create sessions or expose the standalone SSE GET/DELETE endpoints. See `transport-http.md`.
-- **Discovery-first negotiation.** Spec 2026-07-28 removes the `initialize` handshake (SEP-2575); clients probe `server/discover` first and fall back to legacy `initialize` automatically. No code change needed — but don't hand-write `initialize` assumptions into tests or proxies.
-- **Structured tool results emit raw values.** With an output schema and a non-object return type, the wire now carries `structuredContent: 72` instead of `{ "result": 72 }`. See `tool-primitive.md`.
-- **`Tool.InputSchema` is required.** Deserializing a `Tool` without `inputSchema` throws `JsonException` — hand-built tool payloads and test fixtures need at least an empty `{}` object schema.
-- **Tasks moved out of core.** The 1.4.x experimental tasks implementation was replaced (no API or wire compat) by `ModelContextProtocol.Extensions.Tasks`; `RequestMethods.Tasks*` constants became `TasksProtocol` members. See `tasks.md`.
-- **OAuth hardening.** Issuer mismatches rejected per RFC 9207/8414, PKCE `S256` must be advertised by the authorization server, dynamic client registration now sends `application_type`, repeated `insufficient_scope` challenges that add no scopes throw `McpException`.
 
 ## Target frameworks
 
@@ -97,4 +90,4 @@ dotnet add package ModelContextProtocol.Core
 
 ## What about `dnx`?
 
-Newer Microsoft examples sometimes show launching servers via `dnx PackageName --version 2.0.0`. That's a valid distribution model: publish your server as a NuGet package and let users run it without cloning. It's orthogonal to how the server itself is built — keep your code identical and just change the launch command.
+Newer Microsoft examples sometimes show launching servers via `dnx PackageName --version 1.2.3`. That's a valid distribution model: publish your server as a NuGet package and let users run it without cloning. It's orthogonal to how the server itself is built — keep your code identical and just change the launch command.
