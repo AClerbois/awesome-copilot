@@ -182,12 +182,16 @@ builder.Services
     .AddMcpServer()
     .WithHttpTransport(options =>
     {
+#pragma warning disable MCP9004 // EnableLegacySse is [Obsolete] (backpressure)
+#pragma warning disable MCP9006 // stateful-only option, down-level connections only
         options.EnableLegacySse = true;
-#pragma warning disable MCP9004
         options.Stateless = false; // SSE requires stateful mode
+#pragma warning restore MCP9006
 #pragma warning restore MCP9004
     })
     .WithToolsFromAssembly();
 ```
+
+Both suppressions are needed and they are *not* interchangeable: `MCP9004` covers `EnableLegacySse`, `MCP9006` covers the stateful-only `Stateless = false`.
 
 Only do this if the user has a documented client that hasn't migrated. New deployments should not enable it.

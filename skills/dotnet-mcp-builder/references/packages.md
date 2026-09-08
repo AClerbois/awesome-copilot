@@ -9,7 +9,7 @@ All packages live under the [`ModelContextProtocol` NuGet profile](https://www.n
 | **`ModelContextProtocol`** | Default for STDIO servers and most projects | `Core` + `Microsoft.Extensions.Hosting` integration, attribute discovery (`AddMcpServer`, `WithToolsFromAssembly`, etc.) |
 | **`ModelContextProtocol.AspNetCore`** | HTTP (Streamable) servers hosted in ASP.NET Core | The above + `WithHttpTransport` and `MapMcp` |
 | **`ModelContextProtocol.Core`** | Pure clients, custom hosts, low-level scenarios where you don't want the `Microsoft.Extensions.*` dependencies | Just the protocol + transports + low-level `McpServer.Create` / `McpClient.CreateAsync` |
-| **`ModelContextProtocol.Extensions.Tasks`** (2.x) | Long-running task support (the MCP Tasks extension) | Production replacement for the experimental 1.4.x Tasks APIs; register via `WithTasks(...)` |
+| **`ModelContextProtocol.Extensions.Tasks`** (2.x) | Long-running task support (the MCP Tasks extension) | Production replacement for the experimental 1.4.x Tasks APIs; register via `WithTasks(...)` — see [`tasks.md`](./tasks.md) |
 | **`ModelContextProtocol.Extensions.Apps`** (2.x) | MCP Apps — interactive UI rendered in the host | Typed `[McpAppUi]` attribute + `.WithMcpApps()` registration replacing the hand-rolled `_meta` wiring of 1.x; you still serve the UI as a `ui://` resource, and the APIs are experimental (`MCPEXP003`) — see [`mcp-apps.md`](./mcp-apps.md) |
 
 **Rule of thumb:**
@@ -22,6 +22,18 @@ All packages live under the [`ModelContextProtocol` NuGet profile](https://www.n
 As of mid-2026, the stable line is **2.x** (`2.0.0` is current at time of writing), aligned with the MCP 2026-07-28 spec. The `0.x` line was preview and has breaking differences — if you find docs or blog posts referencing `0.4`/`0.6`, treat them as out of date. The `1.x` line still compiles and interoperates, but predates the v2 changes (stateless-by-default HTTP, discovery-first negotiation, roots/sampling/logging deprecations, the Tasks/Apps extension packages) — prefer 2.x for new projects.
 
 **Upgrading 1.x → 2.0 (highlights, not exhaustive):** stable v1.x APIs keep working; the deprecated capabilities (roots, sampling, logging) are now `[Obsolete]` with `MCP9005` warnings, experimental APIs moved (the 1.4.x Tasks surface → `ModelContextProtocol.Extensions.Tasks`), and several behaviors flipped (`HttpServerTransportOptions.Stateless` now defaults to `true`; non-object tool results emit raw `structuredContent` values; `Tool.inputSchema` is required on deserialization). OAuth also changed at runtime — `AuthorizationRedirectDelegate` → `ClientOAuthOptions.AuthorizationCallbackHandler`, RFC 9207 issuer validation, mandatory PKCE S256 in metadata, `application_type` in dynamic registration — and SSE transport failures now propagate the underlying `HttpRequestException`/`TimeoutException`. Before upgrading, read the full [v2.0.0 release notes](https://github.com/modelcontextprotocol/csharp-sdk/releases/tag/v2.0.0).
+
+**The compiler tells you most of it.** 2.0 stages its deprecations behind distinct diagnostic codes — look the code up rather than blanket-suppressing:
+
+| Code | Triggered by | What to do |
+|---|---|---|
+| `MCP9004` | `EnableLegacySse` (marked `[Obsolete]` for backpressure reasons) | Only keep it for a known SSE-only client; prefer Streamable HTTP |
+| `MCP9005` | Roots, sampling, or MCP-channel logging APIs — deprecated by spec 2026-07-28 | Still works against down-level peers; suppress while migrating, avoid in new designs |
+| `MCP9006` | Stateful-only options such as `Stateless = false` | Applies only to down-level initialize-handshake connections — drop it unless you need those legacy paths |
+| `MCP9007` | `AuthorizationRedirectDelegate` / `ClientOAuthOptions.AuthorizationRedirectDelegate` | Migrate to `AuthorizationCallbackHandler`, which also returns the issuer for RFC 9207 validation |
+| `MCPEXP003` | Experimental MCP Apps APIs in `Extensions.Apps` | Expected — suppress deliberately and pin the package version |
+
+`MCP9004` and `MCP9006` are easy to confuse: enabling legacy SSE needs *both* suppressed, because it sets an obsolete option **and** opts back into stateful mode.
 
 To check the latest:
 

@@ -4,6 +4,40 @@
 
 > **Important:** SDK 2.x ships a dedicated extension package, **`ModelContextProtocol.Extensions.Apps`**, with typed MCP Apps support: register with `.WithMcpApps()` and annotate tools with `[McpAppUi(ResourceUri = "ui://...")]`. It replaces the hand-rolled `_meta` wiring, **not** the `ui://` resource — you still register and serve the UI resource. The APIs are marked experimental (suppress diagnostic `MCPEXP003`); check the [package page](https://www.nuget.org/packages/ModelContextProtocol.Extensions.Apps) and [SDK API reference](https://csharp.sdk.modelcontextprotocol.io/api/ModelContextProtocol.html) for the current surface rather than guessing beyond those names. The manual pattern below is what you need on **1.x**, which has no typed layer (was tracked in [csharp-sdk#1431](https://github.com/modelcontextprotocol/csharp-sdk/issues/1431)): serve a `ui://` resource and emit the right `_meta` on the tool.
 
+## The typed way (SDK 2.x, preferred)
+
+```bash
+dotnet add package ModelContextProtocol.Extensions.Apps
+```
+
+Serve the `ui://` resource exactly as in Step 1 below, then annotate the tool and enable the extension:
+
+```csharp
+[McpServerToolType]
+public class ChartTools
+{
+    [McpServerTool(Name = "visualize_data")]
+    [McpAppUi(ResourceUri = "ui://charts/interactive")]
+    [Description("Visualize the user's data as an interactive chart.")]
+    public static async Task<ChartData> VisualizeData(string datasetId, CancellationToken ct)
+        => await LoadDataset(datasetId, ct);
+}
+```
+
+```csharp
+builder.Services
+    .AddMcpServer()
+    .WithHttpTransport()
+    .WithToolsFromAssembly()
+    .WithMcpApps();          // AFTER tool registration — it post-processes registered tools
+```
+
+`WithMcpApps()` advertises the Apps capability and stamps `_meta.ui` onto every tool carrying `[McpAppUi]`. Order matters: call it after `WithTools*`, or nothing gets stamped and the UI silently never appears. It skips tools that already have an explicit `Meta["ui"]` entry, so attribute-driven and manual tools can coexist.
+
+These APIs are experimental (`MCPEXP003`) — pin the package version and check the [API reference](https://csharp.sdk.modelcontextprotocol.io/) for anything beyond this surface rather than inventing it.
+
+The rest of this page is the underlying wire pattern: read it to understand what the extension emits, or to target hosts that predate it.
+
 ## How it works (short version)
 
 1. You register a **resource** at a `ui://` URI returning an HTML bundle.
@@ -213,6 +247,7 @@ For pure-UI iteration, [MCP Inspector](https://github.com/modelcontextprotocol/i
 - **Wrong MIME type.** Use `text/html;profile=mcp-app` (current spec; `text/html+skybridge` is a legacy draft value). Plain `text/html` may still work on lenient hosts but isn't future-proof.
 - **CSP too tight or too loose.** If your UI loads from a CDN, declare it in `Meta["ui"]["csp"]` on the `Tool` definition (this serialises to `_meta.ui.csp` on the wire). Otherwise the iframe sandbox blocks it.
 - **Forgetting `Tool.Meta` on the tool.** Without the `Meta` property containing the `ui.resourceUri` entry, the host treats your tool as a regular text-returning tool. The UI never appears.
+- **Calling `WithMcpApps()` before tool registration.** It post-processes already-registered tools; called too early it stamps nothing, and the UI silently never appears.
 - **Trying to use browser APIs outside the sandbox.** No cookies, no localStorage from the parent. Use `app.updateModelContext` and tool calls for state.
 
 ## Migrating from the manual pattern

@@ -219,6 +219,10 @@ await server.SendNotificationAsync(
 
 Requires a stateful transport (STDIO or stateful HTTP).
 
+## Long-running tools
+
+If a tool takes more than a few seconds, don't just block the call. Either stream progress notifications (above, stateful transports only) or expose it through the **Tasks extension** (`ModelContextProtocol.Extensions.Tasks`), which returns a task handle the client polls for status — and works on the stateless HTTP default. See [`tasks.md`](./tasks.md).
+
 ## Common pitfalls
 
 - **Forgetting `[McpServerToolType]` on the class.** The method-level `[McpServerTool]` alone won't be discovered by `WithToolsFromAssembly`.
