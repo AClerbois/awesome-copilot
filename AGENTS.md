@@ -121,6 +121,7 @@ All agent files (`*.agent.md`) and instruction files (`*.instructions.md`) must 
 - plugin.json must have `description` field (describing the plugin's purpose)
 - plugin.json must have `version` field (semantic version, e.g., "1.0.0")
 - Plugin content is defined declaratively in plugin.json under `extensions.com.github.awesome-copilot` using source-only composition fields (`agents`, `hooks`, `skills`, and `extensions`). Source files live in top-level directories and are materialized into plugins by CI. This namespace is stripped from the served manifest — skills use the standard `skills/` directory and Copilot-specific content uses `com.github.copilot/`.
+- MCP servers are **not** a composition field. Per the Agent Plugins spec they are declared in an `mcp.json` file at the plugin root, which is committed alongside `plugin.json` and shipped as-is. Do not add `mcpServers` to `plugin.json`, and do not use the legacy `.mcp.json` filename.
 - The `marketplace.json` file is automatically generated from all plugins during build
 - Plugins are discoverable and installable via GitHub Copilot CLI
 
@@ -201,7 +202,7 @@ To bundle an extension into another plugin without making a second source copy, 
 3. In v1, only GitHub-hosted plugins are accepted for public submission, using a public repo plus an immutable `ref`, `sha`, or both
 4. The shared validator in `eng/external-plugin-validation.mjs` is the canonical source of truth for external plugin data rules; reuse it instead of duplicating checks in scripts or workflows
 5. Submission issues move through `external-plugin` + `awaiting-review` and then either `ready-for-review` or `requires-submitter-fixes` based on automated quality gates
-6. After issue edits, the issue author or a maintainer can comment `/rerun-intake` to re-run automated intake and quality gates without opening a new submission issue
+6. While a submission issue is open, the issue author or a maintainer can comment `/rerun-intake` to re-run automated intake and quality gates. Maintainer-rejected issues are terminal; contributors who address the rejection feedback must open a new submission issue
 7. Maintainers can explicitly override a quality-gate blocker with `/mark-ready-for-review [optional reason]`, which moves the issue to `ready-for-review`
 8. Maintainers make the decision with `/approve` or `/reject <reason>` issue comments once the issue is in `ready-for-review`; approved issues are closed and used as the six-month re-review anchor
 9. Approval automation creates or updates the PR against `main`, updates `plugins/external.json`, and regenerates marketplace outputs
@@ -331,6 +332,7 @@ For plugins (plugins/\*/):
 - [ ] Directory name is lower case with hyphens
 - [ ] If `keywords` is present, it is an array of lowercase hyphenated strings
 - [ ] If composition arrays are present under `extensions.com.github.awesome-copilot`, each entry is a valid relative path
+- [ ] If the plugin ships MCP servers, they are declared in `mcp.json` at the plugin root (with the `mcp.schema.json` `$schema`), not in `plugin.json` or `.mcp.json`
 - [ ] The plugin does not reference non-existent files
 - [ ] Run `npm run plugin:validate` and `npm run build` to verify the plugin passes all checks
 

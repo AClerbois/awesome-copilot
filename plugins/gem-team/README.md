@@ -17,6 +17,12 @@
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square" alt="Pull requests welcome">
 </p>
 
+## Real-world performance
+
+> Sub-$0.001 per API call on 100K+ token contexts. 82.8M+ tokens processed across 666 agent runs, with typical responses completing in 2-5 seconds. Prompt caching turns large contexts into sub-penny operations — a 10x cost reduction vs. uncached input.
+
+_Observed during Gem-Team development using DeepSeek V4.1 Flash via CommandCode._
+
 ## The Problem
 
 Current AI coding is often one-off and ad-hoc. You get code, but you don't get a repeatable process. This leads to inconsistent quality, wasted tokens, and a lack of long-term learning.
@@ -28,9 +34,11 @@ Gem Team wraps your AI with a disciplined engineering delivery system. It enforc
 ## Why Gem Team?
 
 - **Quality by Default**: TDD and acceptance checks always apply; reviews and security audits run when risk requires them. No more "vibe coding" that breaks in production.
-- **Smart & Efficient**: Optimized for fewer tokens and lower costs. Progressive context management prevents bloat and keeps your AI focused.
+- **Smart & Efficient**: 40-60% less context per task through scoped handoffs and proportional architecture. Cached tokens and compact evidence paths keep costs predictable and your AI focused.
 - **Works With Your Tools**: Seamless integration with Copilot, Claude, Cursor, Codex, Gemini, and Windsurf. Use your preferred environment.
 - **Learns & Improves**: Remembers what works and extracts reusable skills. Your AI gets smarter and more efficient over time.
+- **Resumable Plans**: Every MEDIUM/HIGH task gets a persistent plan ID. Pause, resume, or extend work without losing context or re-discovering what you already know.
+- **Works With Any Model**: Hardened output contracts and relational invariant fallbacks mean every agent works across commercial and open models — not just the ones that memorized your schema.
 
 ### Intelligent Model Routing
 
@@ -121,44 +129,48 @@ After the first install, commit the generated APM files that belong to your repo
 Gem Team uses a structured workflow to turn AI coding into a reliable engineering process:
 
 1. **Route**: Classify the request from supplied evidence and select only the workflow depth it needs.
-2. **Plan**: Use an in-memory DAG for TRIVIAL/LOW work or a persistent, planner-confirmed DAG for MEDIUM/HIGH work.
-3. **Build**: Execute every DAG through the same dependency-aware loop, using TDD and specialist agents.
+2. **Plan**: Use an in-memory wave plan for TRIVIAL/LOW work or a persistent, planner-confirmed wave plan for MEDIUM/HIGH work.
+3. **Build**: Execute every wave plan through the same ordered-wave loop, using TDD and specialist agents.
 4. **Verify**: Check every task and run reviewer integration checks only when changed-scope risk requires them.
 5. **Learn**: Promote only stable, high-confidence patterns after successful execution.
 
 ## Features
 
 - **Risk-Based Quality Gates**: TDD and deterministic verification always apply; specialist reviews and audits run when the plan or changed scope requires them.
-- **Effortless Context**: Progressive context management prevents bloat and keeps your AI focused.
+- **Effortless Context**: Progressive context management prevents bloat. Scoped handoffs, bounded `planning_context`, and evidence-by-reference keep each agent's token footprint minimal while maximizing cached token reuse across waves.
 - **Smart Routing**: Tasks are automatically routed to the right agents based on complexity.
+- **Parallel Execution**: Independent tasks run in parallel within waves; overlapping ownership is serialized to prevent conflicts.
+- **Resumable Plans**: Every MEDIUM/HIGH task gets a persistent plan ID and `plan.yaml`. Pause, resume, or extend work without losing context.
 - **Reusable Knowledge**: High-confidence patterns and skills are extracted and reused for future tasks.
-- **Cost Efficiency**: Model routing and output hygiene ensure you only use the tokens you need.
+- **Cost Efficiency**: Model routing, output hygiene, and compact handoffs ensure you only use the tokens you need. Evidence travels by reference, not by copy — keeping context usage low and cache hits high across waves.
+- **Failure Classification**: Every failure is classified (retry, fixable, replan, flaky, regression, platform-specific, test-bug) so the Orchestrator routes it to the right agent instead of blindly retrying.
+- **Verification Boundary**: The Orchestrator never re-verifies or second-guesses specialist output. Verification is owned exclusively by the specialist responsible for the work.
+- **Quality Directives**: Every agent follows specific rules that prevent common AI coding issues: no dead buttons, no buzzwords, no template filler, and every decision has a reason.
 
 ## How it Works
 
 Gem Team installs a set of specialized agents that work together under the guidance of an Orchestrator. This team follows a disciplined workflow that includes planning, implementation, verification, and learning.
 
 - **Specialist Agents**: Dedicated agents for planning, research, implementation, review, and more.
-- **Orchestration**: One DAG loop coordinates dependencies, parallel work, bounded retries, and final acceptance checks at every complexity level.
-- **Context Management**: Execution agents receive an authoritative `task_definition`; constraints, evidence, and dependency outputs travel through its canonical `handoff`. Planner and reviewer use dedicated handoff contracts, and every delegate receives only a role-scoped configuration snapshot.
+- **Orchestration**: One wave loop coordinates ordered work, parallel tasks, bounded retries, and final acceptance checks at every complexity level.
+- **Context Management**: Execution agents receive an authoritative `task_definition` with a nested `handoff`; constraints, evidence, and prior-wave outputs travel through it. Planner receives a bounded `planning_context`; reviewer uses a dedicated review `handoff`; every delegate receives only a role-scoped configuration snapshot.
 
 ### Agent Roles
 
-| Role                | Description                                                                               |
-| :------------------ | :---------------------------------------------------------------------------------------- |
-| **Orchestrator**    | Coordinates the workflow and ensures all tasks are completed correctly.                   |
-| **Planner**         | Creates bounded DAG plans: milestones, routing, dependencies, waves, risks, and criteria. |
-| **Implementer**     | Writes the code using TDD and best practices.                                             |
-| **Reviewer**        | Reviews plans; provides read-only critique for ideas and challenges.                      |
-| **Debugger**        | Diagnoses bugs with root-cause analysis (never implements fixes).                         |
-| **Researcher**      | Explores the codebase and finds the best patterns to use.                                 |
-| **Designer**        | Creates UI/UX designs, layouts, and design systems.                                       |
-| **Tester**          | Runs E2E browser tests and visual regression.                                             |
-| **Tester Mobile**   | Runs mobile E2E tests on iOS/Android simulators.                                          |
-| **DevOps**          | Manages deployments, CI/CD, and infrastructure with approval gates.                       |
-| **Documentation**   | Writes technical docs, API references, and walkthroughs.                                  |
-| **Code Simplifier** | Refactors code to reduce complexity and remove dead code.                                 |
-| **Skill Creator**   | Extracts reusable patterns into packaged agent skills.                                    |
+| Role                | Description                                                                                                                                                                                                                   |
+| :------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Orchestrator**    | Classifies intent, routes work, tracks state, and enforces verification gates. Never re-verifies specialist output.                                                                                                           |
+| **Planner**         | Creates bounded wave plans with YAGNI/KISS scope reduction and concern-separated slices: milestones, routing, handoffs, risks, and criteria.                                                                                  |
+| **Implementer**     | Implements features, fixes, and refactors with TDD. Covers happy paths, boundaries, errors, and state transitions. Applies SOLID, fail-fast, and least-surprise. Every major decision has a one-line reason. No dead buttons. |
+| **Reviewer**        | Independent reviews for quality, security, and compliance. Read-only critic mode for decisions. Verifies every decision has a reason. Flags dead buttons and external script patches as blocking issues.                      |
+| **Debugger**        | Root-cause analysis, stack traces, regression bisection. Adds a reproduction test; never implements fixes.                                                                                                                    |
+| **Researcher**      | Codebase exploration in five budgeted modes: scan, question, audit, trace, deep.                                                                                                                                              |
+| **Browser Tester**  | E2E browser tests with visual, accessibility, performance, network, and regression checks.                                                                                                                                    |
+| **Mobile Tester**   | Mobile E2E on iOS/Android with Detox, Maestro, or Appium.                                                                                                                                                                     |
+| **DevOps**          | Infrastructure, CI/CD, containers, health checks, rollback, and production approvals.                                                                                                                                         |
+| **Documentation**   | Technical docs, READMEs, API references, diagrams, and walkthroughs. No buzzwords. Every section exists because the product needs it. No fabricated statistics.                                                               |
+| **Code Simplifier** | Removes dead code, reduces complexity, consolidates duplicates, and improves naming. Every refactoring has a one-line reason. No buzzwords. Removes AI-slop comments.                                                         |
+| **Skill Creator**   | Extracts high-confidence patterns into reusable `SKILL.md` files and assets.                                                                                                                                                  |
 
 ## Compatible Tools
 
@@ -203,17 +215,22 @@ review_target: decision
 review_scope: full
 handoff:
   critic_subject:
-    objective: string
-    proposal: string
-    constraints: string[]
-    alternatives: string[]
-    evidence: string[]
-    decision_needed: string
+    objective: str
+    proposal: str
+    constraints:
+      - str
+    alternatives:
+      - str
+    evidence:
+      - str
+    decision_needed: str
   critic_context:
-    audience: string
-    time_horizon: string
-    success_criteria: string[]
-    known_unknowns: string[]
+    audience: str
+    time_horizon: str
+    success_criteria:
+      - str
+    known_unknowns:
+      - str
 ```
 
 ## Learn More

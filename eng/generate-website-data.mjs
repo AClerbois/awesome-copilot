@@ -591,30 +591,20 @@ function generatePluginsData(gitDates, resourceIndex = {}) {
         ];
       });
 
-      // Parse mcpServers: supports a path to a .mcp.json file or an inline object
+      // Discover MCP servers from the spec-mandated mcp.json at the plugin root.
       const mcpItems = [];
-      if (composition.mcpServers) {
-        let mcpServersObj = null;
-        let mcpConfigPath = relPath;
-        if (typeof composition.mcpServers === "string") {
-          const manifestMcpPath = composition.mcpServers.replace(/^\.\//, "");
-          mcpConfigPath = manifestMcpPath ? `${relPath}/${manifestMcpPath}` : relPath;
-          const mcpJsonPath = path.join(pluginDir, manifestMcpPath);
-          if (fs.existsSync(mcpJsonPath)) {
-            try {
-              const mcpJson = JSON.parse(fs.readFileSync(mcpJsonPath, "utf-8"));
-              mcpServersObj = mcpJson.mcpServers || mcpJson;
-            } catch {
-              // ignore parse errors
+      const mcpJsonPath = path.join(pluginDir, "mcp.json");
+      if (fs.existsSync(mcpJsonPath) && fs.statSync(mcpJsonPath).isFile()) {
+        try {
+          const mcpJson = JSON.parse(fs.readFileSync(mcpJsonPath, "utf-8"));
+          const mcpServers = mcpJson.mcpServers;
+          if (mcpServers && typeof mcpServers === "object") {
+            for (const serverName of Object.keys(mcpServers)) {
+              mcpItems.push({ kind: "mcp", path: `${relPath}/mcp.json`, title: serverName });
             }
           }
-        } else if (typeof composition.mcpServers === "object") {
-          mcpServersObj = composition.mcpServers;
-        }
-        if (mcpServersObj) {
-          for (const serverName of Object.keys(mcpServersObj)) {
-            mcpItems.push({ kind: "mcp", path: mcpConfigPath, title: serverName });
-          }
+        } catch {
+          // ignore parse errors
         }
       }
 
@@ -1399,7 +1389,7 @@ function generateCanvasManifest(gitDates, commitSha) {
       canvasId: id,
       extensionId: id,
       extensionName: name,
-      pluginName: null,
+      pluginName: name,
       name: displayName,
       version: normalizeText(ext?.version, "1.0.0"),
       readmeFile: null,
@@ -1424,7 +1414,10 @@ function generateCanvasManifest(gitDates, commitSha) {
       imageUrl,
       assetPath: null,
       installUrl: null,
-      installCommand: null,
+      // Registered in plugins/external.json, so it is installable from the
+      // awesome-copilot marketplace by plugin name even though it is hosted
+      // externally.
+      installCommand: `copilot plugin install ${name}@awesome-copilot`,
       sourceUrl,
       externalSource,
       external: true,
@@ -1473,7 +1466,8 @@ function generateSearchIndex(
   agents,
   instructions,
   skills,
-  plugins
+  plugins,
+  extensions
 ) {
   const index = [];
 
@@ -1526,6 +1520,20 @@ function generateSearchIndex(
       tags: plugin.tags,
       lastUpdated: plugin.lastUpdated,
       searchText: plugin.searchText,
+    });
+  }
+
+  for (const extension of extensions) {
+    index.push({
+      type: "extension",
+      id: extension.id,
+      title: extension.name || extension.title || extension.id,
+      description: extension.description || "",
+      path: extension.path,
+      lastUpdated: extension.lastUpdated,
+      searchText:
+        extension.searchText ||
+        `${extension.name || extension.title || extension.id} ${extension.description || ""}`.toLowerCase(),
     });
   }
 
@@ -1734,7 +1742,8 @@ async function main() {
     agents,
     instructions,
     skills,
-    plugins
+    plugins,
+    extensions
   );
   console.log(`✓ Generated search index with ${searchIndex.length} items`);
 
