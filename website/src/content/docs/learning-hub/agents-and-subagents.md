@@ -3,7 +3,7 @@ title: 'Agents and Subagents'
 description: 'Learn how delegated subagents differ from primary agents, when to use them, and how to launch them in VS Code and Copilot CLI.'
 authors:
   - GitHub Copilot Learning Hub Team
-lastUpdated: 2026-09-12
+lastUpdated: 2026-09-19
 estimatedReadingTime: '9 minutes'
 tags:
   - agents
@@ -134,6 +134,8 @@ The important behavior is different from a single chat turn:
 
 That makes `/fleet` a practical way to launch subagents even if you are not authoring custom agent files yourself.
 
+**Managing Agent Factory runs (v1.0.84+)**: For longer-running or multi-stage delegated work, the `/factories` dialog lets you pause and resume Agent Factory runs — useful when you need to step away from a large orchestration and pick it back up later without losing progress or restarting the whole run.
+
 ### Rubber-duck agent
 
 Available in `/experimental` (v1.0.42+), the **rubber-duck agent** applies a novel multi-model pattern: when you're working in a GPT-powered session, the rubber-duck agent internally routes certain requests through Claude to provide a second perspective. The idea is similar to rubber-duck debugging — talking through a problem with a different "listener" often surfaces assumptions or blind spots you didn't notice.
@@ -219,6 +221,10 @@ No. They can run sequentially when one step depends on another, or in parallel w
 **Can I control how many subagents run simultaneously?**
 
 Yes. In v1.0.66+, usage-based billing users can configure **subagent concurrency and depth limits** directly from `/settings`. The concurrency limit controls how many subagents run in parallel; the depth limit controls how many levels deep delegation can chain (preventing runaway recursive subagent trees). These settings give you predictable control over resource consumption during complex orchestrated tasks.
+
+**Can subagents manage their own context window?**
+
+Yes. In v1.0.85+, `/settings` gained options to opt agents and subagents into **context management tools** — letting a delegated worker actively trim or summarize its own context as it works, instead of relying only on the parent session's compaction behavior. This is useful for long-running subagent tasks that would otherwise risk filling their context window before finishing.
 
 ## Next steps
 
