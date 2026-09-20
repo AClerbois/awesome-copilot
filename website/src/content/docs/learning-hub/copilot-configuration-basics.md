@@ -3,7 +3,7 @@ title: 'Copilot Configuration Basics'
 description: 'Learn how to configure GitHub Copilot at user, workspace, and repository levels to optimize your AI-assisted development experience.'
 authors:
   - GitHub Copilot Learning Hub Team
-lastUpdated: 2026-09-12
+lastUpdated: 2026-09-20
 estimatedReadingTime: '10 minutes'
 tags:
   - configuration
@@ -911,6 +911,14 @@ echo 'source ~/.copilot-completion.bash' >> ~/.bashrc
 ```
 /vim              # toggle Vim modal editing for the current session
 ```
+
+### Concise Transcript View
+
+*(v1.0.85+)* Set `transcriptView` to `"concise"` in `/settings` to group tool activity into expandable work summaries instead of showing every tool call inline. This keeps long sessions easier to scan — you see a collapsed summary of what an agent did and can expand any step for the full detail, rather than scrolling through a flat list of tool invocations.
+
+### Opt-in Context Management Tools for Agents
+
+*(v1.0.85+)* `/settings` now includes an option to let agents and subagents use context management tools (such as compacting their own context) during a session. This is opt-in, so existing sessions keep their current behavior until you enable it — turn it on if you want delegated subagents to manage context pressure autonomously rather than relying solely on the parent agent.
 
 ### Managing Plugin Components from the CLI
 
