@@ -3,7 +3,7 @@ title: "Using Automations in the GitHub Copilot app"
 description: "A practical guide to getting started with Copilot app automations using templates, iterative refinement, and real-world examples."
 authors:
   - GitHub Copilot Learning Hub Team
-lastUpdated: 2026-06-17
+lastUpdated: 2026-09-21
 estimatedReadingTime: "10 minutes"
 tags:
   - copilot-app
@@ -56,6 +56,10 @@ This often produces several concrete automation ideas in one pass. Then turn the
 7. Use **Create and run** for the first run so you can immediately inspect output and refine.
 
 If your first version is only 70% right, that is normal. The fastest path is to iterate from a real run.
+
+## Export and share automations
+
+Automations are enabled by default. Once you have refined one, you can export it and import it in another environment — useful for sharing a working automation across your own machines, or handing a proven template to a teammate without them having to recreate it prompt-by-prompt. Look for **Export** and **Import** in the automation's menu in the Copilot app sidebar.
 
 ## Example: Awesome Copilot daily PR summary
 

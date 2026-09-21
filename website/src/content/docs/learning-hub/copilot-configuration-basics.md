@@ -3,7 +3,7 @@ title: 'Copilot Configuration Basics'
 description: 'Learn how to configure GitHub Copilot at user, workspace, and repository levels to optimize your AI-assisted development experience.'
 authors:
   - GitHub Copilot Learning Hub Team
-lastUpdated: 2026-09-12
+lastUpdated: 2026-09-21
 estimatedReadingTime: '10 minutes'
 tags:
   - configuration
@@ -605,6 +605,14 @@ Unlike `/worktree` (which keeps the current conversation), `/new-worktree` is th
 /worktree new my-feature-branch
 ```
 
+**Custom worktree locations** *(v1.0.87+)*: By default, `/worktree`, `/move`, `/new-worktree` and the `--worktree` flag create worktrees under `<repo>.worktrees/`, with slashes in the branch name flattened to dashes. Set a `worktreePathTemplate` in your settings to control where they land instead, using placeholders `{repoPath}`, `{repo}`, `{branch}`, and `{branchSlug}`:
+
+```json
+{
+  "worktreePathTemplate": "~/src/worktrees/{repo}/{branch}"
+}
+```
+
 The `/every` command (also available as `/loop` since v1.0.64) schedules a recurring prompt to run automatically at a specified interval. The companion `/after` command runs a prompt once after a specified delay. Both are useful for self-paced automation — polling for results, periodically summarizing progress, or triggering other slash commands on a timer:
 
 ```
@@ -945,6 +953,14 @@ copilot skill enable my-skill    # enable a specific skill
 ### Command-Line Parsing Rewrite
 
 *(v1.0.84+)* Command-line parsing moved from Commander to a Rust-based grammar that mirrors what the CLI actually parses, which also generates shell completions directly from that grammar — so `copilot <TAB>` now offers root flags alongside subcommands, and each subcommand only shows its own options. As a result of this change, some error and help wording changed, `copilot login --host` now works correctly, and `--max-autopilot-continues` no longer accepts scientific notation as a value.
+
+### Context Management Tools for Agents and Subagents
+
+*(v1.0.85+)* Use `/settings` to opt in to context management tools that let agents and subagents actively manage their own context window (for example, summarizing or trimming earlier turns) rather than relying solely on automatic compaction. This is useful for long-running sessions where you want more predictable control over how context is preserved or discarded.
+
+### Auto Routing Tier Defaults and Organization Policy
+
+*(v1.0.87+)* Administrators can set startup defaults for the **Auto** model routing tier, both for individual users and as an organization-wide managed policy. Organization policy can be strict (enforced for everyone) or user-overridable, giving teams a way to standardize the default routing behavior for Auto mode across managed devices while still allowing individual overrides where appropriate.
 
 ## Common Questions
 

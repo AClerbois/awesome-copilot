@@ -3,7 +3,7 @@ title: 'GitHub Copilot Terminology Glossary'
 description: 'A quick reference guide defining common GitHub Copilot and platform-specific terms.'
 authors:
   - GitHub Copilot Learning Hub Team
-lastUpdated: 2026-09-07
+lastUpdated: 2026-09-21
 estimatedReadingTime: '8 minutes'
 tags:
   - glossary
@@ -255,6 +255,8 @@ A feature available in both the GitHub Copilot app and VS Code's Agents window (
 
 **When to use**: For routine PR follow-through where you want Copilot to handle the iterative fix-review-merge loop instead of you monitoring it manually.
 
+**Create pull requests from agent sessions** *(VS Code v1.138+)*: With Agent Merge enabled, you can create a pull request directly from an Agent Host session in the Agents window using a single form — review and edit the generated title and description, choose draft status, and configure available merge options before submitting.
+
 **Learn more**: [Getting Started with the GitHub Copilot app](../github-copilot-app/)
 
 **Related terms**: [Coding Agent](#coding-agent), [Agent](#agent)
@@ -286,6 +288,8 @@ A VS Code component (v1.136+) that lets multiple VS Code windows connect to the 
 **Example**: Starting a session in one VS Code window, then reconnecting to the same live session from a second window without losing state.
 
 **When to use**: When you want a consistent agent session shared across multiple editor windows, or when you want the same underlying agent behavior across VS Code, the CLI, and the Copilot app.
+
+**Run sessions in local Dev Containers** *(v1.138+)*: A local folder with a supported Dev Container configuration can show a **Use Dev Container** action in the workspace picker, so the agent session runs with your project's own tools and dependencies (via Docker) instead of what's installed on your host machine.
 
 **Related terms**: [Agent](#agent), [Coding Agent](#coding-agent)
 
