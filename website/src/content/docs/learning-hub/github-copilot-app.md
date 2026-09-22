@@ -92,6 +92,12 @@ For a hands-on guide to building canvases with `/create-canvas`, see [Working wi
 
 This makes Customize a good starting point if you want to extend the app's capabilities but don't need the full `copilot plugin` CLI workflow described in [Installing and Using Plugins](../installing-and-using-plugins/).
 
+*(v1.1.23+)* A featured **Sentry canvas** is available directly from Customize, letting you install and open it to triage live Sentry issues without leaving the app.
+
+### Local Sandbox for Agent Commands
+
+*(v1.1.23+)* A new project setting and **`/sandbox`** command let you run an agent's shell commands in a local sandbox restricted to the session's workspace, matching the sandboxing model available in Copilot CLI (see [Copilot Configuration Basics](../copilot-configuration-basics/)). Turn it on per project if you want an extra layer of containment for autonomous shell commands the agent runs on your behalf.
+
 ### Agent Merge
 
 **Agent Merge** is a feature that can carry your pull requests through the entire workflow:
@@ -116,6 +122,8 @@ From the app, you can request a Copilot code review on a pull request—and re-r
 ### Quick App Settings and PR Editing
 
 Open app settings directly from the message composer with **`/settings`** *(v1.1.16+)*, without leaving your current conversation. You can also now edit issue and pull request titles and descriptions, and edit, delete, or hide comments *(v1.1.18+)*, directly from the app—useful when a Copilot-drafted PR description needs a quick fix before merge. Pull request fix buttons also gained a **"Fix with instructions"** option *(v1.1.18+)* so you can add guidance before Copilot runs the fix.
+
+**`/restart-session`** *(v1.1.23+)* restarts a chat or side chat conversation while preserving its history — useful when a session gets stuck without losing the context you've already built up.
 
 ### Generated Artifacts in the Files Tab
 

@@ -108,6 +108,18 @@ tools: ['codebase', 'terminal', 'github']
 
 For MCP server tools, reference them by server name (e.g., `postgres`, `docker`). See [Understanding MCP Servers](../understanding-mcp-servers/) for details.
 
+**include-custom-instructions** *(v1.0.86+)*: By default, custom agents do not automatically read repository instruction files (`AGENTS.md`, `copilot-instructions.md`, `CLAUDE.md`). Set `include-custom-instructions: true` in frontmatter to opt an agent into loading those files alongside its own persona-specific instructions:
+
+```yaml
+---
+name: 'Security Reviewer'
+description: 'Thorough security audit for OWASP vulnerabilities'
+model: Claude Sonnet 4
+include-custom-instructions: true
+tools: ['codebase', 'terminal', 'github']
+---
+```
+
 ### Agent Instructions
 
 After the frontmatter, write Markdown instructions that define the agent's behavior. Structure these clearly:

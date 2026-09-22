@@ -154,6 +154,8 @@ argument-hint: 'Enter function, class, or file to test'
 ---
 ```
 
+**Namespaced and ignored skill directories** *(v1.0.88+)*: Copilot CLI supports namespaced custom skills — organizing skills under subdirectories that prefix their invocation name — and lets you mark specific skill directories as ignored during discovery, so you can keep draft or unrelated skill folders in your project without having them loaded into every session.
+
 ## Real Examples from the Repository
 
 The awesome-copilot repository includes skill folders demonstrating production patterns.
