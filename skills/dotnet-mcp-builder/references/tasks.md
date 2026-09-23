@@ -2,12 +2,12 @@
 
 The MCP Tasks extension (SEP-2663, stabilised with spec 2026-07-28) lets a tool call run **asynchronously**: instead of holding the request open for minutes, the server returns a task handle and the client polls its status (and can answer input requests) until the result is ready. Typical use cases: exports, batch jobs, builds, anything that outlives a sane HTTP timeout.
 
-> **New in SDK 2.0.** Tasks ship as the dedicated package **`ModelContextProtocol.Extensions.Tasks`** (2.0.0). The experimental tasks support in SDK 1.4.x was replaced wholesale — **no API or wire compatibility**. If you see `RequestMethods.Tasks*` constants in old code, those are gone; the protocol constants now live on `TasksProtocol`.
+> **New in SDK 2.0.** Tasks ship as the dedicated package **`ModelContextProtocol.Extensions.Tasks`**, versioned in lockstep with the core packages (2.2.0 at time of writing). The experimental tasks support in SDK 1.4.x was replaced wholesale — **no API or wire compatibility**. If you see `RequestMethods.Tasks*` constants in old code, those are gone; the protocol constants now live on `TasksProtocol`.
 
 ## Setup
 
 ```bash
-dotnet add package ModelContextProtocol.Extensions.Tasks
+dotnet add package ModelContextProtocol.Extensions.Tasks --version 2.2.0
 ```
 
 ```csharp

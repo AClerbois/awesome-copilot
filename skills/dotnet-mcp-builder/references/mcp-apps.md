@@ -7,7 +7,7 @@
 ## The typed way (SDK 2.x, preferred)
 
 ```bash
-dotnet add package ModelContextProtocol.Extensions.Apps
+dotnet add package ModelContextProtocol.Extensions.Apps --version 2.2.0
 ```
 
 Serve the `ui://` resource exactly as in Step 1 below, then annotate the tool and enable the extension:
