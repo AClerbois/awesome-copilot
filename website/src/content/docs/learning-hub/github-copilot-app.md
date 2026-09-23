@@ -3,7 +3,7 @@ title: 'Getting Started with the GitHub Copilot app'
 description: 'Learn about the GitHub Copilot app, a desktop experience built for agent-native development. Understand its key features and who it''s for.'
 authors:
   - GitHub Copilot Learning Hub Team
-lastUpdated: 2026-08-07
+lastUpdated: 2026-09-12
 estimatedReadingTime: '8 minutes'
 tags:
   - copilot-app
@@ -82,6 +82,16 @@ Closing the app's main window keeps it running in the background instead of quit
 
 For a hands-on guide to building canvases with `/create-canvas`, see [Working with Canvas Extensions](../working-with-canvas-extensions/).
 
+### Customize
+
+**Customize** *(v1.1.13+)* is a single place in the Copilot app to browse and manage everything that extends your agents: plugins, skills, MCP servers, and canvases. Instead of hunting through separate settings pages, open **Customize** to:
+
+- Browse **Featured** integrations (for example Azure DevOps or Figma) and install them with one click
+- See what's already **Installed**, with consistent icons and source labels across plugin, skill, MCP server, canvas, and connector types
+- Create, edit, or remove your own **personal skills** directly in the app, without hand-authoring a `SKILL.md` file
+
+This makes Customize a good starting point if you want to extend the app's capabilities but don't need the full `copilot plugin` CLI workflow described in [Installing and Using Plugins](../installing-and-using-plugins/).
+
 ### Agent Merge
 
 **Agent Merge** is a feature that can carry your pull requests through the entire workflow:
@@ -98,6 +108,24 @@ Agent Merge also understands **stacked pull requests**: it shows a stack summary
 ### Requesting Code Reviews
 
 From the app, you can request a Copilot code review on a pull request—and re-request a review even from reviewers who already responded—without leaving the session. This keeps the review loop inside the same workspace where the change was made.
+
+### Setting a Persistent Goal for Autopilot
+
+**`/goal`** *(v1.1.15+)* sets a persistent objective for autopilot to work toward in local sessions, the same way `/autopilot <objective>` does in Copilot CLI (see [Agents and Subagents](../agents-and-subagents/)). Once set, the Goal pill in the composer shows live status—Active, Paused, or Done—and expands to show the objective, a completion summary, the pause reason (if paused), turn count, and AI Credits usage, so you can track long-running autonomous work without re-reading the whole transcript.
+
+### Quick App Settings and PR Editing
+
+Open app settings directly from the message composer with **`/settings`** *(v1.1.16+)*, without leaving your current conversation. You can also now edit issue and pull request titles and descriptions, and edit, delete, or hide comments *(v1.1.18+)*, directly from the app—useful when a Copilot-drafted PR description needs a quick fix before merge. Pull request fix buttons also gained a **"Fix with instructions"** option *(v1.1.18+)* so you can add guidance before Copilot runs the fix.
+
+### Generated Artifacts in the Files Tab
+
+*(v1.1.20+)* Generated Markdown artifacts—such as plans, summaries, or reports an agent writes during a session—now open in the **Files tab** alongside your repository's own files, with a switcher to move between them. You can also promote a generated artifact into the repository directly from this view, turning a scratch document into a tracked file without manually copying its contents.
+
+### Multi-Plugin Agent Disambiguation
+
+*(v1.1.20+)* If two installed plugins each ship a custom agent with the same display name, the agent picker now distinguishes them by their owning plugin, so you can tell at a glance which agent you're selecting when names collide.
+
+> **Terminology note (v1.1.20+)**: The "Start from scratch" option in session creation menus and project pickers has been renamed to **"Chat"**.
 
 ## Who is the Copilot app for?
 
@@ -158,6 +186,8 @@ Once installed, you can create a session by:
 Each session runs in its own worktree with its own isolated environment. You can run multiple sessions in parallel.
 
 ### Launching Sessions from the Terminal with Deep Links
+
+> **New (v1.0.81+)**: Run `copilot app` from GitHub Copilot CLI to open the GitHub Copilot app directly in the current directory — a quicker alternative to constructing a deep link by hand when you just want to hand off your current working directory to the desktop app.
 
 The GitHub Copilot app supports URL deep links. This is useful when you want to open the app or start a session directly from your terminal workflow.
 

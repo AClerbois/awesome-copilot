@@ -3,7 +3,7 @@ title: 'Installing and Using Plugins'
 description: 'Learn how to find, install, and manage plugins that extend GitHub Copilot CLI with reusable agents, skills, hooks, and integrations.'
 authors:
   - GitHub Copilot Learning Hub Team
-lastUpdated: 2026-08-10
+lastUpdated: 2026-09-12
 relatedArticles:
   - ./building-custom-agents.md
   - ./creating-effective-skills.md
@@ -237,15 +237,25 @@ copilot plugin uninstall my-plugin
 
 > **Auto-update for first-party plugins** *(v1.0.78+)*: Plugins sourced from the official `copilot-plugins` marketplace automatically update to their latest version at the start of each session. You do not need to run `copilot plugin update` for first-party plugins — updates are applied silently on startup. Community plugins from `awesome-copilot` and other marketplace registries still require a manual `copilot plugin update` command.
 
+> **Component-specific commands (v1.0.84+)**: Individual component kinds now have their own dedicated CLI commands instead of relying on cross-kind flags on `copilot plugins`. Use `copilot instruction list` and `copilot lsp list` to inspect loaded instructions and LSP servers, and use `enable`/`disable` directly on `copilot plugin`, `copilot mcp`, and `copilot skill` (for example, `copilot skill disable my-skill`) instead of the removed `copilot plugins enable/disable --plugin|--mcp|--skill` flags. Installing a standalone skill now uses `copilot skill add [--project]` in place of the retired `copilot plugins install --skill [--scope project]`.
+
 ### Enabling and Disabling Plugin Components
 
-*(v1.0.76+)* The `/plugins` command (or `copilot plugin list` in non-interactive mode) now includes **enable/disable toggles** for individual plugin components. You can turn off specific agents, instructions, hooks, LSP servers, or entire plugins without uninstalling them:
+> **Breaking change (v1.0.81+)**: The `/plugins` command has been **removed**. Its functionality moved to dedicated commands: `/plugin` (plugin dashboard), `/mcp` (MCP servers), and `/skills` (skills), with `/subagents` for custom agents and `/instructions` for instructions.
+
+Run `/plugin` (or `copilot plugin list` in non-interactive mode) to see **enable/disable toggles** for individual plugin components. You can turn off specific agents, instructions, hooks, LSP servers, or entire plugins without uninstalling them:
 
 ```
-/plugins
+/plugin
 ```
 
-This opens an interactive list where each installed plugin and its components are shown with a toggle. Disabling a component hides it from Copilot without removing it from disk — useful for temporarily deactivating a hook that is too noisy, or turning off a plugin's instructions when working on a different type of project. Re-enable the component at any time from the same `/plugins` menu.
+This opens an interactive list where each installed plugin and its components are shown with a toggle. Disabling a component hides it from Copilot without removing it from disk — useful for temporarily deactivating a hook that is too noisy, or turning off a plugin's instructions when working on a different type of project. Re-enable the component at any time from the same `/plugin` menu.
+
+*(v1.0.81+)* `/plugin` also flags installed plugins and marketplaces that have a newer version available upstream, and offers an **Update** action to pull the latest version directly from the dashboard.
+
+> **Note**: Enabling and disabling hooks and LSP servers individually is temporarily unavailable following the `/plugins` removal — those toggles previously lived only in the retired dashboard.
+
+> **Dashboard available to everyone (v1.0.81+)**: The plugins dashboard (`/plugin`, `/mcp`, and `/skills`) is now on for all users by default. If you need to opt out, set `PLUGINS_DASHBOARD=false`, which also restores the legacy `copilot plugins` command. This opt-out was later removed in the same release, along with the legacy skills picker it kept alive — `/skills`, bare `/mcp`, and `/mcp show` (with no server name) always open the dashboard now, and `/mcp config` opens the dedicated MCP wizard.
 
 ### Loading Plugins from a Local Directory
 
@@ -299,13 +309,15 @@ If you only need a single agent or skill (rather than a full plugin), you can st
 
 See [Using the Copilot Coding Agent](../using-copilot-coding-agent/) for details on this approach.
 
-## Open Plugin Spec v1 Compatibility
+## Agent Plugins Standard Compatibility
 
 *(v1.0.74+)* GitHub Copilot CLI supports **Open Plugin Spec v1** plugin manifests, in addition to its own `plugin.json` format. This means plugins authored for other AI tools or platforms using the Open Plugin Spec standard can be installed and used in Copilot CLI without any modification.
 
+That standard has since matured: on August 6, 2026, [**Agent Plugins 1.0**](https://agent-plugins.org/) launched as the open, cross-tool specification for this portable packaging format, with VS Code adopting it alongside Copilot CLI. A plugin that follows the standard is just a directory containing a `plugin.json` manifest, skills under `skills/`, and MCP server configuration in `mcp.json` — no per-tool repackaging required. VS Code and Copilot CLI both read the portable parts of the package, and each also reads its own tool-specific components from a dedicated namespace (for example, `com.github.copilot/` for Copilot-specific agents, hooks, and canvas extensions). A client that doesn't recognize a given namespace simply ignores it, so one plugin package can stay portable while still bringing custom agents, slash commands, and hooks to every tool that supports the namespace.
+
 ### What This Means for You
 
-If you encounter a plugin from the broader AI ecosystem (outside GitHub's own marketplace) that ships with an Open Plugin Spec v1 manifest, you can install it directly:
+If you encounter a plugin from the broader AI ecosystem (outside GitHub's own marketplace) that ships with an Agent Plugins / Open Plugin Spec manifest, you can install it directly:
 
 ```bash
 copilot plugin install /path/to/openspec-plugin
@@ -315,7 +327,7 @@ The CLI reads the manifest, discovers the bundled agents, skills, and MCP server
 
 ### `mcp.json` Configuration
 
-Open Plugin Spec v1 also standardizes how MCP server configuration is bundled in plugins. A plugin can now include an `mcp.json` file at its root to declare MCP servers it requires — using the same format as `.mcp.json` or `.github/mcp.json` in your repository. When you install such a plugin, its MCP server configuration is automatically merged into your active server list.
+The Agent Plugins standard also standardizes how MCP server configuration is bundled in plugins. A plugin can now include an `mcp.json` file at its root to declare MCP servers it requires — using the same format as `.mcp.json` or `.github/mcp.json` in your repository. When you install such a plugin, its MCP server configuration is automatically merged into your active server list.
 
 This is useful for plugins that bundle dedicated tooling (for example, a database plugin that ships its own MCP server) — users get both the agent/skill and the required MCP server in a single install step.
 
