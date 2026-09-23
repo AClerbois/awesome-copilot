@@ -48,6 +48,7 @@ Always load `references/packages.md` if you're creating a new project or unsure 
 | Add/modify a prompt | `references/prompt-primitive.md` |
 | Add/modify a resource | `references/resource-primitive.md` |
 | Ask the user a question mid-tool | `references/elicitation.md` |
+| Long-running tool calls (client polls for status) | `references/tasks.md` |
 | Call the client's LLM from a tool (deprecated in 2026-07-28) | `references/sampling.md` |
 | Read the user's project roots (deprecated in 2026-07-28) | `references/roots.md` |
 | Return an interactive UI | `references/mcp-apps.md` |

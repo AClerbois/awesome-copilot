@@ -29,7 +29,7 @@ var transport = new StdioClientTransport(new StdioClientTransportOptions
 await using var client = await McpClient.CreateAsync(transport);
 ```
 
-`StandardErrorLines` is a great debugging aid — you'll see your server's logs as they happen.
+`StandardErrorLines` is a great debugging aid — you'll see your server's logs as they happen. SDK 2.0 also added `InheritEnvironmentVariables` on `StdioClientTransportOptions`, controlling whether the launched server inherits the parent process environment on top of `EnvironmentVariables`.
 
 ## Connecting via HTTP (Streamable)
 
@@ -193,3 +193,11 @@ await using var client = await McpClient.ResumeSessionAsync(transport, new Resum
 ```
 
 Useful for long-lived agent processes that survive transient network drops.
+
+## OAuth changes in 2.0 (client side)
+
+If your client authenticates to a protected server via `ClientOAuthOptions`:
+- `AuthorizationRedirectDelegate` is deprecated (`MCP9007`) — migrate to `AuthorizationCallbackHandler`, which returns the authorization code, state **and issuer** so the SDK can validate it per RFC 9207.
+- Issuer mismatches, and authorization servers that don't advertise PKCE `S256`, are now rejected outright.
+- `offline_access` is appended to the requested scope automatically when the server advertises it; `ScopeSelectorDelegate` lets you customise scope selection during step-up challenges.
+- Repeated `insufficient_scope` challenges that introduce no new scopes throw `McpException` instead of looping.

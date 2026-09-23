@@ -136,6 +136,18 @@ options.Capabilities.NotificationHandlers[NotificationMethods.CancelledNotificat
     };
 ```
 
+## Batching list-changed notifications
+
+If you add or remove many primitives at once (plugin load, tenant switch), don't fire one `list_changed` notification per item. SDK 2.0 added `McpServerPrimitiveCollection<T>.DeferChangedEvents()` — wrap the mutations so a single coalesced notification goes out when the scope disposes:
+
+```csharp
+using (options.ToolCollection.DeferChangedEvents())
+{
+    foreach (var tool in group.Tools)
+        options.ToolCollection.TryAdd(tool);
+} // exactly one notifications/tools/list_changed emitted here
+```
+
 ## Filters / middleware
 
 The SDK supports filters that wrap tool calls (think ASP.NET Core middleware for MCP). Use them for cross-cutting concerns: auth checks, telemetry, rate limiting, audit logging.
